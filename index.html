@@ -1,0 +1,2579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1A1816">
+  <title>Workout Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+    #root { min-height: 100vh; }
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+// LocalStorage wrapper functions - MUST be before app code
+async function localStorageGet(key) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? { value } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function localStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+const { useState } = React;
+
+const TEMPLATES = [
+  { id: 1, location: 'GYM', name: 'Heavy Pulls', type: 'gym' },
+  { id: 2, location: 'GYM', name: 'Heavy Push', type: 'gym' },
+  { id: 3, location: 'GYM', name: 'Push Hypertrophy', type: 'gym' },
+  { id: 4, location: 'GYM', name: 'Pull Hypertrophy', type: 'gym' },
+  { id: 5, location: 'HOME', name: 'Volume Maintenance', type: 'home' },
+  { id: 6, location: 'HOME', name: 'Weighted Session', type: 'home' },
+];
+
+// Exercises that can be weighted (show "Weighted X" when KG selected)
+const WEIGHTABLE_EXERCISES = ['pull-ups', 'chin-ups', 'neutral-grip-pull-ups', 'dips'];
+
+// Exercises that get AMRAP/EMOM/CLUSTER options
+const PULL_VARIATIONS = ['pull-ups', 'chin-ups', 'neutral-grip-pull-ups'];
+
+// Pull exercises (grouped as "Pull-ups" in totals)
+const PULL_EXERCISES = ['pull-ups', 'chin-ups', 'neutral-grip-pull-ups', 'lat-pulldown-compound', 'rows'];
+
+// Push exercises (grouped as "Push" in totals)  
+const PUSH_EXERCISES = ['dips', 'pike-push-ups', 'elevated-pike-push-ups', 'incline-bench-press', 'flat-bench-press', 'hspu', 'push-ups'];
+
+// Vintage-style detailed SVG illustrations
+const ExerciseIllustrations = {
+  'pull-ups': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="5" width="80" height="6" rx="3" fill="#1A1816"/>
+      <ellipse cx="50" cy="24" rx="8" ry="9" fill="#E5C4A8"/>
+      <path d="M43 20 Q50 16 57 20" stroke="#1A1816" strokeWidth="1.5" fill="none"/>
+      <path d="M42 20 Q42 15 50 14 Q58 15 58 20" fill="#1A1816"/>
+      <circle cx="47" cy="23" r="1" fill="#1A1816"/>
+      <circle cx="53" cy="23" r="1" fill="#1A1816"/>
+      <path d="M48 28 Q50 29 52 28" stroke="#1A1816" strokeWidth="1" fill="none"/>
+      <path d="M46 32 L46 36 L54 36 L54 32" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M38 36 L34 70 L42 72 L50 70 L58 72 L66 70 L62 36 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M42 42 Q50 48 58 42" stroke="#1A1816" strokeWidth="1" fill="none"/>
+      <path d="M38 36 Q28 34 24 22 Q22 14 26 10" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="26" cy="10" rx="4" ry="5" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M62 36 Q72 34 76 22 Q78 14 74 10" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="74" cy="10" rx="4" ry="5" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M34 70 L32 88 L44 88 L50 76 L56 88 L68 88 L66 70 Z" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M32 88 L30 110 L38 112 L44 88" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M56 88 L54 104 L62 106 L68 88" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'chin-ups': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="5" width="80" height="6" rx="3" fill="#1A1816"/>
+      <ellipse cx="50" cy="24" rx="8" ry="9" fill="#E5C4A8"/>
+      <path d="M42 20 Q42 15 50 14 Q58 15 58 20" fill="#1A1816"/>
+      <circle cx="47" cy="23" r="1" fill="#1A1816"/>
+      <circle cx="53" cy="23" r="1" fill="#1A1816"/>
+      <path d="M46 32 L46 36 L54 36 L54 32" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M38 36 L34 70 L42 72 L50 70 L58 72 L66 70 L62 36 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M38 36 Q32 34 32 22 Q32 14 36 10" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="36" cy="10" rx="4" ry="5" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M62 36 Q68 34 68 22 Q68 14 64 10" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="64" cy="10" rx="4" ry="5" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M34 70 L32 88 L44 88 L50 76 L56 88 L68 88 L66 70 Z" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M32 88 L30 110 L38 112 L44 88" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M56 88 L58 102 L66 104 L68 88" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'neutral-grip-pull-ups': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="30" y="2" width="6" height="14" rx="2" fill="#1A1816"/>
+      <rect x="64" y="2" width="6" height="14" rx="2" fill="#1A1816"/>
+      <rect x="25" y="2" width="50" height="4" rx="2" fill="#1A1816"/>
+      <ellipse cx="50" cy="28" rx="8" ry="9" fill="#E5C4A8"/>
+      <path d="M42 24 Q42 19 50 18 Q58 19 58 24" fill="#1A1816"/>
+      <circle cx="47" cy="27" r="1" fill="#1A1816"/>
+      <circle cx="53" cy="27" r="1" fill="#1A1816"/>
+      <path d="M38 40 L34 74 L42 76 L50 74 L58 76 L66 74 L62 40 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M38 40 Q30 36 33 24 Q34 18 33 14" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="33" cy="13" rx="4" ry="5" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M62 40 Q70 36 67 24 Q66 18 67 14" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="67" cy="13" rx="4" ry="5" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M34 74 L32 92 L44 92 L50 80 L56 92 L68 92 L66 74 Z" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M32 92 L30 114 L38 116 L44 92" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M56 92 L58 114 L66 116 L68 92" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'dips': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="38" width="20" height="5" rx="2" fill="#1A1816"/>
+      <rect x="72" y="38" width="20" height="5" rx="2" fill="#1A1816"/>
+      <rect x="8" y="38" width="5" height="30" fill="#1A1816"/>
+      <rect x="87" y="38" width="5" height="30" fill="#1A1816"/>
+      <ellipse cx="50" cy="18" rx="8" ry="9" fill="#E5C4A8"/>
+      <path d="M42 14 Q42 9 50 8 Q58 9 58 14" fill="#1A1816"/>
+      <circle cx="47" cy="17" r="1" fill="#1A1816"/>
+      <circle cx="53" cy="17" r="1" fill="#1A1816"/>
+      <path d="M38 30 L36 64 L44 66 L50 64 L56 66 L64 64 L62 30 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M38 30 Q28 32 20 38" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="18" cy="38" rx="5" ry="4" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M62 30 Q72 32 80 38" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="82" cy="38" rx="5" ry="4" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M36 64 L34 82 L44 82 L50 70 L56 82 L66 82 L64 64 Z" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M34 82 L28 100 L36 102 L44 82" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M56 82 L62 100 L70 102 L66 82" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'pike-push-ups': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line x1="5" y1="108" x2="95" y2="108" stroke="#1A1816" strokeWidth="1" opacity="0.3"/>
+      <ellipse cx="28" cy="72" rx="8" ry="9" fill="#E5C4A8"/>
+      <path d="M20 72 Q20 67 28 66 Q36 67 36 72" fill="#1A1816"/>
+      <path d="M38 58 L42 54 L58 30 L64 32 L48 56 L44 60 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M32 64 Q24 80 20 108" fill="none" stroke="#E5C4A8" strokeWidth="10"/>
+      <path d="M32 64 Q24 80 20 108" fill="none" stroke="#1A1816" strokeWidth="1.5"/>
+      <circle cx="34" cy="62" r="6" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="20" cy="106" rx="5" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M40 60 Q38 80 36 108" fill="none" stroke="#E5C4A8" strokeWidth="10"/>
+      <path d="M40 60 Q38 80 36 108" fill="none" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="36" cy="106" rx="5" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <ellipse cx="60" cy="28" rx="8" ry="6" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M66 32 L78 70 L86 68 L76 28" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M78 70 L82 108" stroke="#E5C4A8" strokeWidth="8"/>
+      <path d="M78 70 L82 108" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="82" cy="106" rx="5" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+    </svg>
+  ),
+  'elevated-pike-push-ups': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line x1="5" y1="108" x2="95" y2="108" stroke="#1A1816" strokeWidth="1" opacity="0.3"/>
+      <rect x="62" y="68" width="32" height="40" fill="none" stroke="#1A1816" strokeWidth="2" rx="2"/>
+      <ellipse cx="24" cy="78" rx="8" ry="9" fill="#E5C4A8"/>
+      <path d="M16 78 Q16 73 24 72 Q32 73 32 78" fill="#1A1816"/>
+      <path d="M34 62 L38 56 L62 28 L68 32 L44 58 L40 64 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M28 70 Q20 86 16 108" fill="none" stroke="#E5C4A8" strokeWidth="10"/>
+      <path d="M28 70 Q20 86 16 108" fill="none" stroke="#1A1816" strokeWidth="1.5"/>
+      <circle cx="30" cy="66" r="6" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="16" cy="106" rx="5" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M36 64 Q32 86 32 108" fill="none" stroke="#E5C4A8" strokeWidth="10"/>
+      <path d="M36 64 Q32 86 32 108" fill="none" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="32" cy="106" rx="5" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <ellipse cx="64" cy="26" rx="8" ry="6" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M70 32 L76 56 L84 54 L78 28" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="78" cy="68" rx="4" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <ellipse cx="82" cy="68" rx="4" ry="3" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+    </svg>
+  ),
+  'incline-bench-press': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 95 L45 50 L55 50 L55 95" fill="#4A4A4A" stroke="#1A1816" strokeWidth="2"/>
+      <line x1="20" y1="95" x2="20" y2="108" stroke="#1A1816" strokeWidth="3"/>
+      <line x1="55" y1="95" x2="55" y2="108" stroke="#1A1816" strokeWidth="3"/>
+      <rect x="15" y="28" width="70" height="4" rx="2" fill="#1A1816"/>
+      <rect x="10" y="22" width="8" height="16" rx="2" fill="#1A1816"/>
+      <rect x="82" y="22" width="8" height="16" rx="2" fill="#1A1816"/>
+      <ellipse cx="48" cy="46" rx="7" ry="8" fill="#E5C4A8"/>
+      <path d="M41 44 Q41 40 48 39 Q55 40 55 44" fill="#1A1816"/>
+      <path d="M40 54 L32 85 L44 87 L50 82 L56 87 L68 85 L56 54 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M40 54 Q32 48 28 36 Q26 30 28 30" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="26" cy="30" rx="4" ry="4" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M56 54 Q64 48 70 36 Q72 30 70 30" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="72" cy="30" rx="4" ry="4" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M32 85 L28 100 L40 100 L50 88 L60 100 L72 100 L68 85 Z" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M28 100 L24 115 L32 117 L40 100" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M60 100 L64 115 L72 117 L72 100" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'flat-bench-press': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="15" y="70" width="55" height="8" rx="2" fill="#4A4A4A" stroke="#1A1816" strokeWidth="2"/>
+      <line x1="20" y1="78" x2="20" y2="108" stroke="#1A1816" strokeWidth="3"/>
+      <line x1="65" y1="78" x2="65" y2="108" stroke="#1A1816" strokeWidth="3"/>
+      <rect x="12" y="38" width="76" height="4" rx="2" fill="#1A1816"/>
+      <rect x="6" y="32" width="10" height="16" rx="2" fill="#1A1816"/>
+      <rect x="84" y="32" width="10" height="16" rx="2" fill="#1A1816"/>
+      <ellipse cx="62" cy="64" rx="7" ry="8" fill="#E5C4A8"/>
+      <path d="M55 62 Q55 58 62 57 Q69 58 69 62" fill="#1A1816"/>
+      <path d="M30 64 L30 70 L62 70 L62 56 L56 56 L56 64 Z" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M36 64 Q30 54 28 44 Q26 40 30 40" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="28" cy="40" rx="4" ry="4" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <path d="M52 64 Q58 54 62 44 Q64 40 60 40" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <ellipse cx="62" cy="40" rx="4" ry="4" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1"/>
+      <ellipse cx="28" cy="72" rx="10" ry="6" fill="#2C4A7C" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M22 76 L18 100 L26 102 L32 78" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+      <path d="M28 78 L32 100 L40 102 L38 78" fill="#E5C4A8" stroke="#1A1816" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'lat-pulldown-compound': (
+    <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="10" width="80" height="100" rx="8" fill="#2D2926" stroke="#4A4540" strokeWidth="2"/>
+      <text x="50" y="55" textAnchor="middle" fill="#8B7355" fontSize="12" fontWeight="600">LAT</text>
+      <text x="50" y="72" textAnchor="middle" fill="#8B7355" fontSize="12" fontWeight="600">PULLDOWN</text>
+    </svg>
+  ),
+};
+
+const COMPOUND_EXERCISES = [
+  { id: 'pull-ups', name: 'Pull-ups' },
+  { id: 'chin-ups', name: 'Chin-ups' },
+  { id: 'neutral-grip-pull-ups', name: 'Neutral Grip Pull-ups' },
+  { id: 'dips', name: 'Dips' },
+  { id: 'pike-push-ups', name: 'Pike Push-ups' },
+  { id: 'elevated-pike-push-ups', name: 'Elevated Pike Push-ups' },
+  { id: 'incline-bench-press', name: 'Incline Bench Press' },
+  { id: 'flat-bench-press', name: 'Flat Bench Press' },
+  { id: 'lat-pulldown-compound', name: 'Lat Pulldown' },
+];
+
+const ISOLATION_EXERCISES = {
+  back: {
+    name: 'Back',
+    exercises: [
+      { id: 'bodyweight-rows', name: 'Bodyweight Rows', target: 'mid back' },
+      { id: 'cable-rows', name: 'Cable Rows', target: 'mid back' },
+      { id: 'chest-supported-rows', name: 'Chest Supported Rows', target: 'mid back' },
+      { id: 'dumbbell-pullovers', name: 'Dumbbell Pullovers', target: 'lats' },
+      { id: 'cable-pulldowns', name: 'Cable Pulldowns', target: 'lats' },
+      { id: 'lat-pulldown', name: 'Lat Pulldown', target: 'lats' },
+    ]
+  },
+  biceps: {
+    name: 'Biceps',
+    exercises: [
+      { id: 'incline-cable-curl', name: 'Incline Cable Curl', target: 'long head' },
+      { id: 'incline-dumbbell-curl', name: 'Incline Dumbbell Curl', target: 'long head' },
+      { id: 'preacher-curl', name: 'Preacher Curl', target: 'short head' },
+      { id: 'dumbbell-curl', name: 'Dumbbell Curl', target: 'both heads' },
+      { id: 'dumbbell-hammer-curl', name: 'Dumbbell Hammer Curl', target: 'brachialis' },
+      { id: 'cable-hammer-curl', name: 'Cable Hammer Curl', target: 'brachialis' },
+    ]
+  },
+  triceps: {
+    name: 'Triceps',
+    exercises: [
+      { id: 'diamond-pushups', name: 'Diamond Push-ups', target: 'all heads' },
+      { id: 'kickbacks', name: 'Kickbacks', target: 'lateral head' },
+      { id: 'tricep-rope-pulldowns', name: 'Tricep Rope Pull Downs', target: 'lateral head' },
+      { id: 'overhead-cable-tricep-extensions', name: 'Overhead Cable Tricep Extensions', target: 'long head' },
+      { id: 'skull-crushers', name: 'Skull Crushers', target: 'all heads' },
+    ]
+  },
+  chest: {
+    name: 'Chest',
+    exercises: [
+      { id: 'chest-flys', name: 'Chest Flys', target: 'inner chest' },
+      { id: 'deficit-pushups', name: 'Deficit Push-ups', target: 'stretch/full ROM' },
+      { id: 'feet-elevated-pushups', name: 'Feet Elevated Push-ups', target: 'upper chest' },
+    ]
+  },
+  rearDelts: {
+    name: 'Rear Delts',
+    exercises: [
+      { id: 'bent-over-dumbbell-flys', name: 'Bent Over Dumbbell Flys', target: 'rear delt' },
+      { id: 'rear-delt-cable-pulls', name: 'Rear Delt Cable Pulls', target: 'rear delt' },
+      { id: 'rear-delt-flys', name: 'Rear Delt Flys', target: 'rear delt' },
+    ]
+  },
+  shoulders: {
+    name: 'Shoulders',
+    exercises: [
+      { id: 'front-delt-raise', name: 'Front Delt Raise', target: 'front delt' },
+      { id: 'shoulder-press', name: 'Shoulder Press', target: 'all heads' },
+      { id: 'lateral-raises', name: 'Lateral Raises', target: 'side delt' },
+      { id: 'lateral-cable-raises', name: 'Lateral Cable Raises', target: 'side delt' },
+    ]
+  },
+};
+
+function WorkoutApp() {
+  const [screen, setScreen] = useState('templates');
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [compoundCount, setCompoundCount] = useState(null);
+  const [selectedCompounds, setSelectedCompounds] = useState([]);
+  const [selectedIsolations, setSelectedIsolations] = useState([]);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [workoutLog, setWorkoutLog] = useState({});
+  const [savedWorkouts, setSavedWorkouts] = useState({});
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [selectedWorkoutDate, setSelectedWorkoutDate] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [exerciseOrder, setExerciseOrder] = useState([]);
+  const [savedTemplates, setSavedTemplates] = useState({});
+  const [showSaveSlots, setShowSaveSlots] = useState(false);
+  const [slotNameInput, setSlotNameInput] = useState('');
+  const [savingToSlot, setSavingToSlot] = useState(null);
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [editSlotName, setEditSlotName] = useState('');
+  const [logDateOverride, setLogDateOverride] = useState(null);
+
+  const today = new Date();
+  const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+  const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const todayKey = today.toISOString().split('T')[0];
+
+  // Load saved workouts and templates on mount
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const workoutsResult = await localStorageGet('workouts');
+        if (workoutsResult && workoutsResult.value) {
+          setSavedWorkouts(JSON.parse(workoutsResult.value));
+        }
+      } catch (e) {
+        console.log('No saved workouts found');
+      }
+      try {
+        const templatesResult = await localStorageGet('savedTemplates');
+        if (templatesResult && templatesResult.value) {
+          setSavedTemplates(JSON.parse(templatesResult.value));
+        }
+      } catch (e) {
+        console.log('No saved templates found');
+      }
+      
+      // Restore in-progress session if exists
+      try {
+        const sessionResult = await localStorageGet('currentSession');
+        if (sessionResult && sessionResult.value) {
+          const session = JSON.parse(sessionResult.value);
+          // Only restore if session is from today
+          if (session.date === todayKey && session.screen) {
+            setSelectedTemplate(session.template);
+            setCompoundCount(session.compoundCount);
+            setSelectedCompounds(session.compounds || []);
+            setSelectedIsolations(session.isolations || []);
+            setExerciseOrder(session.exerciseOrder || []);
+            setWorkoutLog(session.workoutLog || {});
+            setScreen(session.screen);
+          }
+        }
+      } catch (e) {
+        console.log('No session to restore');
+      }
+      
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
+  // Auto-save session whenever key state changes
+  React.useEffect(() => {
+    if (loading) return; // Don't save during initial load
+    if (screen === 'templates' || screen === 'save-success' || screen === 'calendar') {
+      // Clear session when on home/success/calendar screens
+      localStorageSet('currentSession', JSON.stringify(null)).catch(() => {});
+      return;
+    }
+    
+    const sessionData = {
+      date: todayKey,
+      screen,
+      template: selectedTemplate,
+      compoundCount,
+      compounds: selectedCompounds,
+      isolations: selectedIsolations,
+      exerciseOrder,
+      workoutLog,
+      savedAt: new Date().toISOString(),
+    };
+    
+    localStorageSet('currentSession', JSON.stringify(sessionData)).catch(e => {
+      console.log('Failed to save session:', e);
+    });
+  }, [screen, selectedTemplate, compoundCount, selectedCompounds, selectedIsolations, exerciseOrder, workoutLog, loading]);
+
+  // Save workout function
+  const saveWorkout = async () => {
+    const saveDateKey = logDateOverride || todayKey;
+    const workoutData = {
+      date: saveDateKey,
+      template: selectedTemplate,
+      compounds: selectedCompounds,
+      isolations: selectedIsolations,
+      exerciseOrder: exerciseOrder,
+      log: workoutLog,
+      completedAt: new Date().toISOString(),
+    };
+
+    const updatedWorkouts = {
+      ...savedWorkouts,
+      [saveDateKey]: workoutData,
+    };
+
+    try {
+      await localStorageSet('workouts', JSON.stringify(updatedWorkouts));
+      // Clear the in-progress session
+      await localStorageSet('currentSession', JSON.stringify(null));
+      setSavedWorkouts(updatedWorkouts);
+      setLogDateOverride(null);
+      setScreen('save-success');
+    } catch (e) {
+      console.error('Failed to save workout:', e);
+      // Still update local state
+      setSavedWorkouts(updatedWorkouts);
+      setLogDateOverride(null);
+      setScreen('save-success');
+    }
+  };
+
+  // Calendar helpers
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    return { daysInMonth, startingDay, year, month };
+  };
+
+  const getWorkoutForDate = (dateKey) => savedWorkouts[dateKey];
+
+  const formatDateKey = (year, month, day) => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
+  const getWeekStats = () => {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    let count = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      if (savedWorkouts[key]) count++;
+    }
+    return count;
+  };
+
+  const getMonthStats = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    let count = 0;
+    Object.keys(savedWorkouts).forEach(key => {
+      const [y, m] = key.split('-');
+      if (parseInt(y) === year && parseInt(m) === month + 1) count++;
+    });
+    return count;
+  };
+
+  const getStreak = () => {
+    let streak = 0;
+    const checkDate = new Date();
+    while (true) {
+      const key = checkDate.toISOString().split('T')[0];
+      if (savedWorkouts[key]) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  const handleSelectTemplate = (template) => {
+    setSelectedTemplate(template);
+    // Go to slot selection screen
+    setTimeout(() => setScreen('template-slots'), 400);
+  };
+
+  // Load a saved slot and go directly to logging
+  const handleLoadSavedSlot = (slotNumber) => {
+    const templateSlots = savedTemplates[selectedTemplate.id] || {};
+    const slot = templateSlots[slotNumber];
+    if (slot) {
+      setSelectedCompounds(slot.compounds);
+      setSelectedIsolations(slot.isolations);
+      setExerciseOrder(slot.exerciseOrder);
+      // Initialize workout log
+      const initialLog = {};
+      slot.exerciseOrder.forEach(ex => {
+        initialLog[ex.instanceId] = {
+          exerciseId: ex.id,
+          trainingStyle: ex.trainingStyle || null,
+          sets: '',
+          reps: '',
+          kgAmount: '',
+          actualReps: '',
+          setResults: [],
+          locked: { setsReps: false, weight: false, totalReps: false },
+          completed: false,
+        };
+      });
+      setWorkoutLog(initialLog);
+      setScreen('logging');
+    }
+  };
+
+  // Start new workout (go through setup flow)
+  const handleStartNewWorkout = () => {
+    setScreen('q1-compound-count');
+  };
+
+  // Save current workout setup as a template slot
+  const saveWorkoutTemplate = async (slotNumber, name) => {
+    const templateId = selectedTemplate.id;
+    const slotData = {
+      name: name || `Workout ${slotNumber}`,
+      compounds: selectedCompounds,
+      isolations: selectedIsolations,
+      exerciseOrder: exerciseOrder,
+      savedAt: new Date().toISOString(),
+    };
+
+    const updatedTemplates = {
+      ...savedTemplates,
+      [templateId]: {
+        ...(savedTemplates[templateId] || {}),
+        [slotNumber]: slotData,
+      },
+    };
+
+    try {
+      await localStorageSet('savedTemplates', JSON.stringify(updatedTemplates));
+      setSavedTemplates(updatedTemplates);
+    } catch (e) {
+      console.error('Failed to save template:', e);
+      setSavedTemplates(updatedTemplates);
+    }
+  };
+
+  // Rename a saved slot
+  const renameSlot = async (slotNumber, newName) => {
+    const templateId = selectedTemplate.id;
+    const existingSlot = savedTemplates[templateId]?.[slotNumber];
+    if (!existingSlot) return;
+
+    const updatedTemplates = {
+      ...savedTemplates,
+      [templateId]: {
+        ...savedTemplates[templateId],
+        [slotNumber]: { ...existingSlot, name: newName },
+      },
+    };
+
+    try {
+      await localStorageSet('savedTemplates', JSON.stringify(updatedTemplates));
+      setSavedTemplates(updatedTemplates);
+    } catch (e) {
+      console.error('Failed to rename slot:', e);
+      setSavedTemplates(updatedTemplates);
+    }
+  };
+
+  // Delete a saved slot
+  const deleteSlot = async (slotNumber) => {
+    const templateId = selectedTemplate.id;
+    const updatedTemplateSlots = { ...savedTemplates[templateId] };
+    delete updatedTemplateSlots[slotNumber];
+
+    const updatedTemplates = {
+      ...savedTemplates,
+      [templateId]: updatedTemplateSlots,
+    };
+
+    try {
+      await localStorageSet('savedTemplates', JSON.stringify(updatedTemplates));
+      setSavedTemplates(updatedTemplates);
+    } catch (e) {
+      console.error('Failed to delete slot:', e);
+      setSavedTemplates(updatedTemplates);
+    }
+  };
+
+  // Edit a past workout from calendar
+  const handleEditWorkout = (dateKey) => {
+    const workout = savedWorkouts[dateKey];
+    if (!workout) return;
+    
+    setLogDateOverride(dateKey);
+    setSelectedTemplate(workout.template);
+    setSelectedCompounds(workout.compounds || []);
+    setSelectedIsolations(workout.isolations || []);
+    setExerciseOrder(workout.exerciseOrder || []);
+    setWorkoutLog(workout.log || {});
+    setSelectedWorkoutDate(null);
+    setScreen('logging');
+  };
+
+  // Add a new workout for a past date (from calendar)
+  const handleAddWorkoutForDate = (dateKey) => {
+    setLogDateOverride(dateKey);
+    setSelectedWorkoutDate(null);
+    setScreen('templates');
+  };
+
+  const handleStart = () => {
+    if (selectedTemplate) setScreen('q1-compound-count');
+  };
+
+  const handleSelectCompoundCount = (count) => {
+    setCompoundCount(count);
+    setTimeout(() => setScreen('q2-select-compounds'), 300);
+  };
+
+  const handleSelectCompound = (exerciseId) => {
+    // Only add unique exercises (no duplicates in compound selection)
+    const alreadySelected = selectedCompounds.some(c => c.id === exerciseId);
+    if (!alreadySelected && selectedCompounds.length < compoundCount) {
+      const instanceId = `${exerciseId}-${Date.now()}`;
+      setSelectedCompounds(prev => [...prev, { id: exerciseId, instanceId, weightType: null, trainingStyle: null }]);
+    }
+  };
+
+  const handleRemoveCompound = (instanceId) => {
+    setSelectedCompounds(prev => prev.filter(c => c.instanceId !== instanceId));
+  };
+
+  const handleSelectWeightType = (instanceId, weightType) => {
+    setSelectedCompounds(prev => prev.map(c => c.instanceId === instanceId ? { ...c, weightType } : c));
+  };
+
+  const handleSelectTrainingStyle = (instanceId, trainingStyle) => {
+    setSelectedCompounds(prev => prev.map(c => c.instanceId === instanceId ? { ...c, trainingStyle } : c));
+  };
+
+  // Add another set of same compound with different style
+  const handleAddAnotherSet = (exerciseId, weightType) => {
+    const instanceId = `${exerciseId}-${Date.now()}`;
+    setSelectedCompounds(prev => [...prev, { id: exerciseId, instanceId, weightType, trainingStyle: null }]);
+  };
+
+  // Remove a duplicate set
+  const handleRemoveDuplicateSet = (instanceId) => {
+    setSelectedCompounds(prev => prev.filter(c => c.instanceId !== instanceId));
+  };
+
+  // Auto-advance when all compounds selected (no BW/KG needed here anymore)
+  React.useEffect(() => {
+    if (screen === 'q2-select-compounds' && 
+        selectedCompounds.length === compoundCount) {
+      setTimeout(() => setScreen('q2b-training-styles'), 400);
+    }
+  }, [selectedCompounds, compoundCount, screen]);
+
+  const getSelectionOrder = (exerciseId) => {
+    const index = selectedCompounds.findIndex(c => c.id === exerciseId);
+    return index === -1 ? null : index;
+  };
+
+  const handleContinueToReorder = () => {
+    // Initialize exercise order with compounds first, then isolations
+    const order = [
+      ...selectedCompounds.map(c => ({ ...c, type: 'compound' })),
+      ...selectedIsolations.map(id => ({ id, type: 'isolation', instanceId: id }))
+    ];
+    setExerciseOrder(order);
+    setScreen('reorder-exercises');
+  };
+
+  const moveExercise = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= exerciseOrder.length) return;
+    const newOrder = [...exerciseOrder];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    setExerciseOrder(newOrder);
+  };
+
+  const toggleGroup = (groupId) => {
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  const handleToggleIsolation = (exerciseId) => {
+    setSelectedIsolations(prev => {
+      if (prev.includes(exerciseId)) return prev.filter(id => id !== exerciseId);
+      return [...prev, exerciseId];
+    });
+  };
+
+  const getExerciseName = (exerciseId) => {
+    const compound = COMPOUND_EXERCISES.find(e => e.id === exerciseId);
+    if (compound) return compound.name;
+    for (const group of Object.values(ISOLATION_EXERCISES)) {
+      const iso = group.exercises.find(e => e.id === exerciseId);
+      if (iso) return iso.name;
+    }
+    return exerciseId;
+  };
+
+  const handleStartLogging = () => {
+    // Initialize workout log based on exercise order
+    const initialLog = {};
+    exerciseOrder.forEach(ex => {
+      if (ex.type === 'compound') {
+        initialLog[ex.instanceId] = {
+          exerciseId: ex.id,
+          trainingStyle: ex.trainingStyle,
+          sets: '',
+          reps: '',
+          kgAmount: '',
+          actualReps: '',
+          setResults: [],
+          locked: { setsReps: false, weight: false, totalReps: false },
+          completed: false,
+        };
+      } else {
+        initialLog[ex.instanceId] = {
+          exerciseId: ex.id,
+          sets: '',
+          reps: '',
+          kgAmount: '',
+          actualReps: '',
+          setResults: [],
+          locked: { setsReps: false, weight: false, totalReps: false },
+          completed: false,
+        };
+      }
+    });
+    setWorkoutLog(initialLog);
+    setScreen('logging');
+  };
+
+  // Check if an exercise is complete (all sets marked)
+  const isExerciseComplete = (logEntry) => {
+    if (!logEntry || !logEntry.sets || !logEntry.reps) return false;
+    const sets = parseInt(logEntry.sets) || 0;
+    if (sets === 0) return false;
+    if (!logEntry.setResults || logEntry.setResults.length < sets) return false;
+    return logEntry.setResults.every(r => r && r.passed !== null);
+  };
+
+  const toggleLock = (exerciseId, field) => {
+    setWorkoutLog(prev => ({
+      ...prev,
+      [exerciseId]: {
+        ...prev[exerciseId],
+        locked: {
+          ...prev[exerciseId].locked,
+          [field]: !prev[exerciseId].locked[field]
+        }
+      }
+    }));
+  };
+
+  const lockField = (exerciseId, field) => {
+    setWorkoutLog(prev => ({
+      ...prev,
+      [exerciseId]: {
+        ...prev[exerciseId],
+        locked: {
+          ...prev[exerciseId].locked,
+          [field]: true
+        }
+      }
+    }));
+  };
+
+  const updateExerciseLog = (exerciseId, field, value) => {
+    setWorkoutLog(prev => ({
+      ...prev,
+      [exerciseId]: { ...prev[exerciseId], [field]: value }
+    }));
+  };
+
+  const updateSetResult = (exerciseId, setIndex, passed, outcome = '') => {
+    setWorkoutLog(prev => {
+      const exercise = prev[exerciseId];
+      const newResults = [...exercise.setResults];
+      newResults[setIndex] = { passed, outcome };
+      return { ...prev, [exerciseId]: { ...exercise, setResults: newResults } };
+    });
+  };
+
+  const handleBack = () => {
+    if (screen === 'template-slots') {
+      setScreen('templates');
+      setSelectedTemplate(null);
+    } else if (screen === 'q1-compound-count') {
+      setScreen('template-slots');
+      setCompoundCount(null);
+    } else if (screen === 'q2-select-compounds') {
+      setScreen('q1-compound-count');
+      setSelectedCompounds([]);
+    } else if (screen === 'q2b-training-styles') {
+      setScreen('q2-select-compounds');
+    } else if (screen === 'q3-select-isolations') {
+      setScreen('q2b-training-styles');
+      setSelectedIsolations([]);
+    } else if (screen === 'reorder-exercises') {
+      setScreen('q3-select-isolations');
+    } else if (screen === 'logging') {
+      setScreen('reorder-exercises');
+    }
+  };
+
+  const getGroupSelectedCount = (groupId) => {
+    const group = ISOLATION_EXERCISES[groupId];
+    return group.exercises.filter(e => selectedIsolations.includes(e.id)).length;
+  };
+
+  // ============ TEMPLATE SELECTION SCREEN ============
+  if (screen === 'templates') {
+    if (loading) {
+      return (
+        <div style={styles.container}>
+          <div style={styles.abstractBg}>
+            <div style={styles.abstractLine1} />
+            <div style={styles.abstractLine2} />
+            <div style={styles.abstractGradientOrb} />
+          </div>
+          <div style={styles.loadingContainer}>
+            <span style={styles.loadingText}>Loading...</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={styles.container}>
+        {/* Abstract geometric background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine1} />
+          <div style={styles.abstractLine2} />
+          <div style={styles.abstractLine3} />
+          <div style={styles.abstractDiamond} />
+          <div style={styles.abstractGradientOrb} />
+          <div style={styles.abstractGradientOrb2} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          {logDateOverride && (
+            <div style={styles.dateOverrideBanner}>
+              <span style={styles.dateOverrideText}>
+                Logging for: {new Date(logDateOverride).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+              <button style={styles.dateOverrideCancel} onClick={() => { setLogDateOverride(null); setScreen('calendar'); }}>✕</button>
+            </div>
+          )}
+          <header style={styles.hero}>
+            <div style={styles.heroAbstract} />
+            <div style={styles.heroAbstractLine} />
+            <div style={styles.heroContent}>
+              <div style={styles.dateBadge}>
+                <span style={styles.dateDay}>{dayName}</span>
+                <span style={styles.dateNum}>{dateStr}</span>
+              </div>
+              <h1 style={styles.heroTitle}>What's the <span style={styles.heroAccent}>play</span> today?</h1>
+            </div>
+            <button style={styles.calendarBtn} onClick={() => setScreen('calendar')}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </button>
+          </header>
+
+          <div style={styles.sectionHeader}>
+            <span style={styles.sectionTitle}>TEMPLATES</span>
+            <span style={styles.sectionCount}>{TEMPLATES.length} workouts</span>
+          </div>
+
+          <div style={styles.grid}>
+            {TEMPLATES.map((template, index) => {
+              return (
+                <button key={template.id} style={{ ...styles.card, animationDelay: `${index * 0.06}s` }} onClick={() => handleSelectTemplate(template)}>
+                  <div style={styles.cardAbstract} />
+                  <span style={{ ...styles.locationTag, ...(template.type === 'home' ? styles.tagHome : styles.tagGym) }}>{template.location}</span>
+                  <span style={styles.templateName}>{template.name}</span>
+                  <div style={styles.cardArrow}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={styles.bottomSection}>
+            <div style={styles.statsCard}>
+              <div style={styles.statsCardAbstract} />
+              <div style={styles.stat}><span style={styles.statIcon}>🔥</span><div style={styles.statInfo}><span style={styles.statNumber}>{getWeekStats()}</span><span style={styles.statLabel}>This Week</span></div></div>
+              <div style={styles.statDivider} />
+              <div style={styles.stat}><span style={styles.statIcon}>📅</span><div style={styles.statInfo}><span style={styles.statNumber}>{getMonthStats()}</span><span style={styles.statLabel}>This Month</span></div></div>
+              <div style={styles.statDivider} />
+              <div style={styles.stat}><span style={styles.statIcon}>⚡</span><div style={styles.statInfo}><span style={styles.statNumber}>{getStreak()}</span><span style={styles.statLabel}>Streak</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ TEMPLATE SLOTS SCREEN ============
+  if (screen === 'template-slots') {
+    const templateSlots = savedTemplates[selectedTemplate?.id] || {};
+    
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine1} />
+          <div style={styles.abstractLine4} />
+          <div style={styles.abstractDiamond2} />
+          <div style={styles.abstractGradientOrb2} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={() => setScreen('templates')}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+
+          <div style={styles.slotHeader}>
+            <span style={{ ...styles.slotTag, ...(selectedTemplate?.type === 'home' ? styles.tagHome : styles.tagGym) }}>
+              {selectedTemplate?.location}
+            </span>
+            <h1 style={styles.slotTitle}>{selectedTemplate?.name}</h1>
+            <p style={styles.slotSubtitle}>Choose a saved workout or create new</p>
+          </div>
+
+          {/* Decorative accent */}
+          <div style={styles.decorLine} />
+
+          <div style={styles.slotGrid}>
+          {[1, 2, 3].map(slotNum => {
+            const slot = templateSlots[slotNum];
+            const hasSlot = !!slot;
+            
+            return (
+              <div key={slotNum} style={styles.slotCardWrapper}>
+                <button
+                  style={{ ...styles.slotCard, ...(hasSlot ? styles.slotCardFilled : {}) }}
+                  onClick={() => hasSlot ? handleLoadSavedSlot(slotNum) : null}
+                >
+                  <div style={styles.slotCardInner}>
+                    <span style={styles.slotNumber}>{slot?.name || `Slot ${slotNum}`}</span>
+                    {hasSlot ? (
+                      <>
+                        <div style={styles.slotInfo}>
+                          <span style={styles.slotCompounds}>{slot.compounds?.length || 0} compounds</span>
+                          <span style={styles.slotDot}>•</span>
+                          <span style={styles.slotIsolations}>{slot.isolations?.length || 0} isolations</span>
+                        </div>
+                        <span style={styles.slotSaved}>Tap to start →</span>
+                      </>
+                    ) : (
+                      <span style={styles.slotEmpty}>Empty</span>
+                    )}
+                  </div>
+                  {/* Decorative corner */}
+                  <div style={styles.slotCorner} />
+                </button>
+                {hasSlot && (
+                  <div style={styles.slotActions}>
+                    <button 
+                      style={styles.slotActionBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSlot(slotNum);
+                        setEditSlotName(slot.name || '');
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button 
+                      style={{ ...styles.slotActionBtn, ...styles.slotActionBtnDelete }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Delete this saved workout?')) {
+                          deleteSlot(slotNum);
+                        }
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <button style={styles.newWorkoutCard} onClick={handleStartNewWorkout}>
+            <div style={styles.newWorkoutIcon}>+</div>
+            <span style={styles.newWorkoutText}>Create New</span>
+            <span style={styles.newWorkoutSubtext}>Build from scratch</span>
+          </button>
+        </div>
+
+        {/* Rename modal */}
+        {editingSlot && (
+          <div style={styles.saveSlotModal}>
+            <div style={styles.saveSlotModalContent}>
+              <h3 style={styles.saveSlotModalTitle}>Rename Workout</h3>
+              <input
+                type="text"
+                style={styles.slotNameInput}
+                value={editSlotName}
+                onChange={(e) => setEditSlotName(e.target.value)}
+                placeholder="Enter new name"
+                autoFocus
+              />
+              <div style={styles.saveSlotBtnRow}>
+                <button 
+                  style={styles.saveSlotCancel} 
+                  onClick={() => { setEditingSlot(null); setEditSlotName(''); }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  style={styles.saveSlotConfirm} 
+                  onClick={() => {
+                    renameSlot(editingSlot, editSlotName);
+                    setEditingSlot(null);
+                    setEditSlotName('');
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Q1: HOW MANY COMPOUND MOVEMENTS ============
+  if (screen === 'q1-compound-count') {
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine2} />
+          <div style={styles.abstractLine3} />
+          <div style={styles.abstractDiamond} />
+          <div style={styles.abstractGradientOrb} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={handleBack}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div style={styles.questionHeader}>
+            <span style={styles.questionStep}>STEP 1 OF 3</span>
+            <h1 style={styles.questionTitle}>How many <span style={styles.heroAccent}>compound</span> movements today?</h1>
+            <p style={styles.questionSubtitle}>{selectedTemplate?.name}</p>
+          </div>
+          <div style={styles.countGrid}>
+            {[1, 2, 3, 4].map((num, index) => {
+              const isSelected = compoundCount === num;
+              return (
+                <button key={num} style={{ ...styles.countCard, ...(isSelected ? styles.countCardSelected : {}), animationDelay: `${index * 0.1}s` }} onClick={() => handleSelectCompoundCount(num)}>
+                  <span style={{ ...styles.countNumber, ...(isSelected ? styles.countNumberSelected : {}) }}>{num}</span>
+                  <span style={{ ...styles.countLabel, ...(isSelected ? styles.countLabelSelected : {}) }}>{num === 1 ? 'movement' : 'movements'}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={styles.progressContainer}><div style={styles.progressTrack}><div style={{...styles.progressFill, width: '33%'}} /></div></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Q2: SELECT COMPOUND EXERCISES ============
+  if (screen === 'q2-select-compounds') {
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine1} />
+          <div style={styles.abstractLine3} />
+          <div style={styles.abstractGradientOrb2} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={handleBack}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div style={styles.questionHeader}>
+            <span style={styles.questionStep}>STEP 2 OF 3</span>
+            <h1 style={styles.questionTitle}>Select your <span style={styles.heroAccent}>{compoundCount}</span> compound{compoundCount > 1 ? 's' : ''}</h1>
+            <p style={styles.questionSubtitle}>Tap to select</p>
+          </div>
+
+          {/* Selected compounds as simple removable chips */}
+          {selectedCompounds.length > 0 && (
+            <div style={styles.selectedCompoundsSection}>
+              <span style={styles.selectedCompoundsLabel}>SELECTED ({selectedCompounds.length}/{compoundCount})</span>
+            <div style={styles.selectedCompoundsChips}>
+              {selectedCompounds.map((compound, index) => (
+                <div key={compound.instanceId} style={{ ...styles.selectedCompoundChipSimple, ...(index === 0 ? styles.selectedCompoundChipMain : {}) }}>
+                  <div style={styles.selectedCompoundInfo}>
+                    {index === 0 && <span style={styles.chipStarSmall}>★</span>}
+                    <span style={styles.selectedCompoundName}>{getExerciseName(compound.id)}</span>
+                  </div>
+                  <button style={styles.removeCompoundBtn} onClick={() => handleRemoveCompound(compound.instanceId)}>✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={styles.selectionCounter}><span style={styles.counterText}>{selectedCompounds.length} / {compoundCount} selected</span></div>
+        <div style={styles.exerciseGrid}>
+          {COMPOUND_EXERCISES.map((exercise, index) => {
+            const isSelected = selectedCompounds.some(c => c.id === exercise.id);
+            const canAdd = selectedCompounds.length < compoundCount && !isSelected;
+            return (
+              <div key={exercise.id} style={{ ...styles.exerciseCardWrapper, animationDelay: `${index * 0.05}s` }}>
+                <button 
+                  style={{ ...styles.exerciseCard, ...(isSelected ? styles.exerciseCardSelected : {}), ...(!canAdd && !isSelected ? styles.exerciseCardDisabled : {}) }} 
+                  onClick={() => canAdd && handleSelectCompound(exercise.id)}
+                  disabled={!canAdd && !isSelected}
+                >
+                  <div style={styles.illustrationContainer}>
+                    {ExerciseIllustrations[exercise.id]}
+                  </div>
+                  <span style={styles.exerciseName}>{exercise.name}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div style={styles.progressContainer}><div style={styles.progressTrack}><div style={{...styles.progressFill, width: '50%'}} /></div></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Q2B: SELECT TRAINING STYLES ============
+  if (screen === 'q2b-training-styles') {
+    const TRAINING_STYLES = ['STANDARD', 'AMRAP', 'EMOM', 'CLUSTER'];
+    
+    // Group compounds by exercise ID to show them together
+    const uniqueExerciseIds = [...new Set(selectedCompounds.map(c => c.id))];
+    
+    // Check if all are complete (have both weightType and trainingStyle)
+    const allComplete = selectedCompounds.every(c => c.weightType !== null && c.trainingStyle !== null);
+    
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine2} />
+          <div style={styles.abstractLine4} />
+          <div style={styles.abstractDiamond2} />
+          <div style={styles.abstractGradientOrb} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={() => setScreen('q2-select-compounds')}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div style={styles.questionHeader}>
+            <span style={styles.questionStep}>STEP 2B OF 4</span>
+            <h1 style={styles.questionTitle}>Configure <span style={styles.heroAccent}>compounds</span></h1>
+            <p style={styles.questionSubtitle}>Set weight type & training style</p>
+          </div>
+
+          <div style={styles.trainingStyleList}>
+            {uniqueExerciseIds.map((exerciseId) => {
+              const exerciseInstances = selectedCompounds.filter(c => c.id === exerciseId);
+              const baseName = getExerciseName(exerciseId);
+              const isWeightable = WEIGHTABLE_EXERCISES.includes(exerciseId);
+              
+              return (
+                <div key={exerciseId} style={styles.trainingStyleGroup}>
+                  <div style={styles.trainingStyleGroupHeader}>
+                    <span style={styles.trainingStyleGroupName}>{baseName}</span>
+                  </div>
+                  
+                  {exerciseInstances.map((compound, idx) => {
+                    const displayName = compound.weightType === 'KG' && isWeightable ? `Weighted ${baseName}` : baseName;
+                    
+                    return (
+                      <div key={compound.instanceId} style={styles.trainingStyleSetRow}>
+                        <div style={styles.trainingStyleSetHeader}>
+                          <span style={styles.trainingStyleSetLabel}>
+                            {exerciseInstances.length > 1 ? `Set ${idx + 1}` : displayName}
+                        </span>
+                        {exerciseInstances.length > 1 && (
+                          <button 
+                            style={styles.removeSetBtn}
+                            onClick={() => handleRemoveDuplicateSet(compound.instanceId)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* BW / KG Selection */}
+                      <div style={styles.weightTypeRow}>
+                        <span style={styles.weightTypeLabel}>Weight:</span>
+                        <div style={styles.weightTypeBtns}>
+                          <button
+                            style={{ ...styles.weightTypeBtn, ...(compound.weightType === 'BW' ? styles.weightTypeBtnActive : {}) }}
+                            onClick={() => handleSelectWeightType(compound.instanceId, 'BW')}
+                          >
+                            BW
+                          </button>
+                          <button
+                            style={{ ...styles.weightTypeBtn, ...(compound.weightType === 'KG' ? styles.weightTypeBtnActive : {}) }}
+                            onClick={() => handleSelectWeightType(compound.instanceId, 'KG')}
+                          >
+                            +KG
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Training Style */}
+                      <div style={styles.trainingStyleOptionsRow}>
+                        <span style={styles.trainingStyleOptionsLabel}>Style:</span>
+                        <div style={styles.trainingStyleOptions}>
+                          {TRAINING_STYLES.map(style => (
+                            <button
+                              key={style}
+                              style={{ 
+                                ...styles.trainingStyleOption, 
+                                ...(compound.trainingStyle === style ? styles.trainingStyleOptionActive : {}) 
+                              }}
+                              onClick={() => handleSelectTrainingStyle(compound.instanceId, style)}
+                            >
+                              {style}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                <button 
+                  style={styles.addAnotherSetBtn}
+                  onClick={() => handleAddAnotherSet(exerciseId, exerciseInstances[0]?.weightType || 'BW')}
+                >
+                  + Add another {baseName} set
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {allComplete && (
+          <div style={styles.continueContainer}>
+            <button style={styles.continueBtn} onClick={() => setScreen('q3-select-isolations')}>Continue →</button>
+          </div>
+        )}
+
+        <div style={styles.progressContainer}><div style={styles.progressTrack}><div style={{...styles.progressFill, width: '66%'}} /></div></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Q3: SELECT ISOLATION EXERCISES ============
+  if (screen === 'q3-select-isolations') {
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine1} />
+          <div style={styles.abstractLine2} />
+          <div style={styles.abstractGradientOrb} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={handleBack}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div style={styles.questionHeader}>
+            <span style={styles.questionStep}>STEP 3 OF 3</span>
+            <h1 style={styles.questionTitle}>Add <span style={styles.heroAccent}>isolation</span> exercises</h1>
+          </div>
+
+          <div style={styles.compoundSummary}>
+            <span style={styles.summaryLabel}>TODAY'S COMPOUNDS</span>
+            <div style={styles.compoundChips}>
+              {selectedCompounds.map((compound, index) => (
+              <div key={compound.instanceId} style={{ ...styles.compoundChip, ...(index === 0 ? styles.compoundChipMain : styles.compoundChipSecondary) }}>
+                {index === 0 && <span style={styles.chipStar}>★</span>}
+                <span style={styles.chipName}>{getExerciseName(compound.id)}</span>
+                {compound.weightType && <span style={styles.chipWeight}>{compound.weightType}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {selectedIsolations.length > 0 && (
+          <div style={styles.selectedIsolations}>
+            <span style={styles.selectedIsoLabel}>SELECTED ({selectedIsolations.length})</span>
+            <div style={styles.selectedIsoChips}>
+              {selectedIsolations.map(isoId => (
+                <div key={isoId} style={styles.selectedIsoChip}><span style={styles.checkmark}>✓</span><span>{getExerciseName(isoId)}</span></div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={styles.isolationGroups}>
+          {Object.entries(ISOLATION_EXERCISES).map(([groupId, group]) => {
+            const selectedCount = getGroupSelectedCount(groupId);
+            const hasSelections = selectedCount > 0;
+            return (
+              <div key={groupId} style={styles.isolationGroup}>
+                <button style={{ ...styles.groupHeader, ...(hasSelections ? styles.groupHeaderActive : {}) }} onClick={() => toggleGroup(groupId)}>
+                  <div style={styles.groupHeaderLeft}>
+                    <span style={{ ...styles.groupName, ...(hasSelections ? styles.groupNameActive : {}) }}>{group.name}</span>
+                    {hasSelections && <span style={styles.groupSelectedBadge}>{selectedCount}</span>}
+                  </div>
+                  <div style={styles.groupHeaderRight}>
+                    <span style={{ ...styles.groupCount, ...(hasSelections ? styles.groupCountActive : {}) }}>{selectedCount}/{group.exercises.length}</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expandedGroups[groupId] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', color: hasSelections ? '#0D9488' : '#8B7355' }}><path d="M6 9l6 6 6-6"/></svg>
+                  </div>
+                </button>
+                {expandedGroups[groupId] && (
+                  <div style={styles.exerciseList}>
+                    {group.exercises.map(exercise => {
+                      const isChecked = selectedIsolations.includes(exercise.id);
+                      return (
+                        <button key={exercise.id} style={{ ...styles.isolationItem, ...(isChecked ? styles.isolationItemChecked : {}) }} onClick={() => handleToggleIsolation(exercise.id)}>
+                          <div style={{ ...styles.checkbox, ...(isChecked ? styles.checkboxChecked : {}) }}>
+                            {isChecked && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+                          </div>
+                          <div style={styles.isolationInfo}>
+                            <span style={{ ...styles.isolationName, ...(isChecked ? styles.isolationNameChecked : {}) }}>{exercise.name}</span>
+                            <span style={styles.isolationTarget}>({exercise.target})</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={styles.continueContainer}><button style={styles.continueBtn} onClick={handleContinueToReorder}>Continue →</button></div>
+        <div style={styles.progressContainer}><div style={styles.progressTrack}><div style={{...styles.progressFill, width: '75%'}} /></div></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ REORDER EXERCISES SCREEN ============
+  if (screen === 'reorder-exercises') {
+    const templateSlots = savedTemplates[selectedTemplate?.id] || {};
+
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine3} />
+          <div style={styles.abstractLine4} />
+          <div style={styles.abstractDiamond} />
+          <div style={styles.abstractGradientOrb2} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={() => setScreen('q3-select-isolations')}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div style={styles.questionHeader}>
+            <span style={styles.questionStep}>FINAL STEP</span>
+            <h1 style={styles.questionTitle}>Set your <span style={styles.heroAccent}>order</span></h1>
+            <p style={styles.questionSubtitle}>Use arrows to reorder exercises</p>
+          </div>
+
+          <div style={styles.reorderList}>
+            {exerciseOrder.map((exercise, index) => {
+              const isCompound = exercise.type === 'compound';
+              const baseName = getExerciseName(exercise.id);
+            let displayName = baseName;
+            if (isCompound && exercise.trainingStyle && exercise.trainingStyle !== 'STANDARD') {
+              displayName = `${baseName} (${exercise.trainingStyle})`;
+            }
+            if (isCompound && exercise.weightType === 'KG') {
+              displayName = `Weighted ${displayName}`;
+            }
+
+            return (
+              <div key={exercise.instanceId} style={styles.reorderItem}>
+                <div style={styles.reorderItemLeft}>
+                  <span style={styles.reorderNumber}>{index + 1}</span>
+                  <div style={styles.reorderInfo}>
+                    <span style={{ ...styles.reorderBadge, ...(isCompound ? styles.reorderBadgeCompound : styles.reorderBadgeIsolation) }}>
+                      {isCompound ? 'COMPOUND' : 'ISOLATION'}
+                    </span>
+                    <span style={styles.reorderName}>{displayName}</span>
+                  </div>
+                </div>
+                <div style={styles.reorderArrows}>
+                  <button 
+                    style={{ ...styles.reorderArrowBtn, ...(index === 0 ? styles.reorderArrowDisabled : {}) }}
+                    onClick={() => moveExercise(index, index - 1)}
+                    disabled={index === 0}
+                  >
+                    ↑
+                  </button>
+                  <button 
+                    style={{ ...styles.reorderArrowBtn, ...(index === exerciseOrder.length - 1 ? styles.reorderArrowDisabled : {}) }}
+                    onClick={() => moveExercise(index, index + 1)}
+                    disabled={index === exerciseOrder.length - 1}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Save slots modal */}
+        {showSaveSlots && (
+          <div style={styles.saveSlotModal}>
+            <div style={styles.saveSlotModalContent}>
+              {savingToSlot ? (
+                <>
+                  <h3 style={styles.saveSlotModalTitle}>Name Your Workout</h3>
+                  <p style={styles.saveSlotModalSubtitle}>Give this saved workout a name</p>
+                  <input
+                    type="text"
+                    style={styles.slotNameInput}
+                    value={slotNameInput}
+                    onChange={(e) => setSlotNameInput(e.target.value)}
+                    placeholder="e.g. Heavy Pull Day"
+                    autoFocus
+                  />
+                  <div style={styles.saveSlotBtnRow}>
+                    <button 
+                      style={styles.saveSlotCancel} 
+                      onClick={() => { setSavingToSlot(null); setSlotNameInput(''); }}
+                    >
+                      Back
+                    </button>
+                    <button 
+                      style={styles.saveSlotConfirm} 
+                      onClick={() => {
+                        saveWorkoutTemplate(savingToSlot, slotNameInput || `Workout ${savingToSlot}`);
+                        setSavingToSlot(null);
+                        setSlotNameInput('');
+                        setShowSaveSlots(false);
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 style={styles.saveSlotModalTitle}>Save to Slot</h3>
+                  <p style={styles.saveSlotModalSubtitle}>Choose a slot to save this workout</p>
+                  <div style={styles.saveSlotOptions}>
+                    {[1, 2, 3].map(slotNum => {
+                      const slot = templateSlots[slotNum];
+                      return (
+                        <button
+                          key={slotNum}
+                          style={styles.saveSlotOption}
+                          onClick={() => {
+                            if (slot) {
+                              // Overwriting - just save with existing name
+                              saveWorkoutTemplate(slotNum, slot.name);
+                              setShowSaveSlots(false);
+                            } else {
+                              // New slot - ask for name
+                              setSavingToSlot(slotNum);
+                            }
+                          }}
+                        >
+                          <span style={styles.saveSlotOptionNum}>{slot?.name || `Slot ${slotNum}`}</span>
+                          <span style={styles.saveSlotOptionStatus}>{slot ? 'Overwrite' : 'Empty'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button style={styles.saveSlotCancel} onClick={() => setShowSaveSlots(false)}>Cancel</button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div style={styles.continueContainer}>
+          <button style={styles.permaSaveBtn} onClick={() => setShowSaveSlots(true)}>
+            💾 Save as Template
+          </button>
+          <button style={styles.continueBtn} onClick={handleStartLogging}>Start Workout →</button>
+        </div>
+        <div style={styles.progressContainer}><div style={styles.progressTrack}><div style={{...styles.progressFill, width: '100%'}} /></div></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ LOGGING SCREEN ============
+  if (screen === 'logging') {
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine1} />
+          <div style={styles.abstractLine2} />
+          <div style={styles.abstractGradientOrb} />
+          <div style={styles.abstractGradientOrb2} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={() => setScreen('reorder-exercises')}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+
+          {/* Workout Reference Card - always visible at top */}
+          <div style={styles.workoutRefCard}>
+            <div style={styles.workoutRefHeader}>
+              <span style={styles.workoutRefDate}>{dayName}, {dateStr}</span>
+            </div>
+            <h2 style={styles.workoutRefTitle}>{selectedTemplate?.name}</h2>
+            <span style={{
+              ...styles.workoutRefTag,
+              ...(selectedTemplate?.type === 'home' ? styles.tagHome : styles.tagGym)
+            }}>
+              {selectedTemplate?.location}
+            </span>
+
+            <div style={styles.workoutRefSection}>
+              {exerciseOrder.map((exercise, i) => {
+                const log = workoutLog[exercise.instanceId] || {};
+                const complete = isExerciseComplete(log);
+                const isCompound = exercise.type === 'compound';
+                const baseName = getExerciseName(exercise.id);
+              let displayName = baseName;
+              
+              if (isCompound) {
+                if (exercise.weightType === 'KG' && WEIGHTABLE_EXERCISES.includes(exercise.id)) {
+                  displayName = log.kgAmount ? `${baseName} (${log.kgAmount}kg)` : `Weighted ${baseName}`;
+                }
+                if (exercise.trainingStyle && exercise.trainingStyle !== 'STANDARD') {
+                  displayName = `${displayName} - ${exercise.trainingStyle}`;
+                }
+              } else {
+                if (log.kgAmount) {
+                  displayName = `${baseName} (${log.kgAmount}kg)`;
+                }
+              }
+
+              return (
+                <div key={exercise.instanceId} style={styles.workoutRefItem}>
+                  <div style={styles.workoutRefItemLeft}>
+                    {complete ? (
+                      <span style={styles.workoutRefCheck}>✓</span>
+                    ) : (
+                      <span style={styles.workoutRefCheckEmpty}>○</span>
+                    )}
+                    <span style={styles.workoutRefItemNum}>{i + 1}.</span>
+                    <span style={{ ...styles.workoutRefItemName, ...(complete ? styles.workoutRefItemComplete : {}) }}>
+                      {displayName}
+                    </span>
+                    <span style={isCompound ? styles.workoutRefItemTagCompound : styles.workoutRefItemTagIso}>
+                      {isCompound ? 'C' : 'I'}
+                    </span>
+                  </div>
+                  {log.sets && log.reps && (
+                    <span style={styles.workoutRefItemSets}>{log.sets}×{log.reps}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* Decorative accent */}
+          <div style={styles.decorAccentLine} />
+        </div>
+
+        {/* Exercise logging cards */}
+        <div style={styles.logList}>
+          {exerciseOrder.map((exercise, exIndex) => {
+            const logKey = exercise.instanceId;
+            const log = workoutLog[logKey] || {};
+            const isCompound = exercise.type === 'compound';
+            const isIsolation = exercise.type === 'isolation';
+            const isWeightable = WEIGHTABLE_EXERCISES.includes(exercise.id);
+            const sets = parseInt(log.sets) || 0;
+            const reps = log.reps || '';
+            const hasKG = exercise.weightType === 'KG';
+            const kgAmount = log.kgAmount || '';
+            const exerciseComplete = isExerciseComplete(log);
+            
+            // Get display name
+            const baseName = getExerciseName(exercise.id);
+            let displayName = baseName;
+            if (hasKG && isWeightable) {
+              displayName = kgAmount ? `Weighted ${baseName} (${kgAmount}KG)` : `Weighted ${baseName}`;
+            }
+            if (isCompound && exercise.trainingStyle && exercise.trainingStyle !== 'STANDARD') {
+              displayName = `${displayName} - ${exercise.trainingStyle}`;
+            }
+
+            return (
+              <div key={logKey} style={{ ...styles.logCard, ...(exerciseComplete ? styles.logCardComplete : {}) }}>
+                <div style={styles.logCardHeader}>
+                  <div style={styles.logCardHeaderTop}>
+                    <span style={styles.logOrderNum}>{exIndex + 1}</span>
+                    {isCompound && <span style={styles.logCompoundBadge}>COMPOUND</span>}
+                    {isIsolation && <span style={styles.logIsoBadge}>ISOLATION</span>}
+                    {exerciseComplete && <span style={styles.logCompleteBadge}>✓ DONE</span>}
+                  </div>
+                  <span style={styles.logExerciseName}>{displayName}</span>
+                </div>
+
+                {/* KG Amount Input for weighted compound exercises */}
+                {hasKG && isWeightable && (
+                  <div style={styles.kgInputRow}>
+                    <label style={styles.kgLabel}>Weight</label>
+                    {log.locked?.weight ? (
+                      <span 
+                        style={styles.lockedValue}
+                        onClick={() => toggleLock(logKey, 'weight')}
+                      >
+                        {log.kgAmount || '0'}kg
+                      </span>
+                    ) : (
+                      <div style={styles.kgInputWrapper}>
+                        <input
+                          type="number"
+                          style={styles.kgInput}
+                          value={log.kgAmount || ''}
+                          onChange={(e) => updateExerciseLog(logKey, 'kgAmount', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && log.kgAmount) {
+                              lockField(logKey, 'weight');
+                            }
+                          }}
+                          placeholder="0"
+                        />
+                        <span style={styles.kgSuffix}>kg</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* KG Amount Input for ALL isolation exercises */}
+                {isIsolation && (
+                  <div style={styles.kgInputRow}>
+                    <label style={styles.kgLabel}>Weight</label>
+                    {log.locked?.weight ? (
+                      <span 
+                        style={styles.lockedValue}
+                        onClick={() => toggleLock(logKey, 'weight')}
+                      >
+                        {log.kgAmount || '0'}kg
+                      </span>
+                    ) : (
+                      <div style={styles.kgInputWrapper}>
+                        <input
+                          type="number"
+                          style={styles.kgInput}
+                          value={log.kgAmount || ''}
+                          onChange={(e) => updateExerciseLog(logKey, 'kgAmount', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && log.kgAmount) {
+                              lockField(logKey, 'weight');
+                            }
+                          }}
+                          placeholder="0"
+                        />
+                        <span style={styles.kgSuffix}>kg</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sets and Reps Input */}
+                <div style={styles.setsRepsRow}>
+                  {log.locked?.setsReps ? (
+                    <>
+                      <div style={styles.lockedSetsReps}>
+                        <span style={styles.lockedSetsRepsLabel}>Sets × Reps</span>
+                        <span style={styles.lockedSetsRepsValue}>{log.sets}×{log.reps}</span>
+                      </div>
+                      <button 
+                        style={styles.setsRepsDisplayClickable}
+                        onClick={() => toggleLock(logKey, 'setsReps')}
+                      >
+                        <span style={styles.setsRepsText}>{log.sets}×{log.reps}</span>
+                        <span style={styles.editIcon}>✎</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.inputLabel}>Sets</label>
+                        <input
+                          type="number"
+                          style={styles.numberInput}
+                          value={log.sets || ''}
+                          onChange={(e) => {
+                            updateExerciseLog(logKey, 'sets', e.target.value);
+                            const newSets = parseInt(e.target.value) || 0;
+                            const newResults = Array(newSets).fill(null).map((_, i) => log.setResults?.[i] || { passed: null, outcome: '' });
+                            updateExerciseLog(logKey, 'setResults', newResults);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.target.nextElementSibling?.nextElementSibling?.querySelector('input')?.focus();
+                            }
+                          }}
+                          placeholder="0"
+                        />
+                      </div>
+                      <span style={styles.timesSymbol}>×</span>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.inputLabel}>Reps</label>
+                        <input
+                          type="text"
+                          style={styles.numberInput}
+                          value={log.reps || ''}
+                          onChange={(e) => updateExerciseLog(logKey, 'reps', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && log.sets && log.reps) {
+                              lockField(logKey, 'setsReps');
+                            }
+                          }}
+                          placeholder="0"
+                        />
+                      </div>
+                      {sets > 0 && reps && (
+                        <div style={styles.setsRepsDisplay}>
+                          <span style={styles.setsRepsText}>{sets}×{reps}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Set Results */}
+                {sets > 0 && (
+                  <div style={styles.setResultsSection}>
+                    <span style={styles.setResultsLabel}>Track each set:</span>
+                    <div style={styles.setResultsGrid}>
+                      {Array(sets).fill(null).map((_, setIndex) => {
+                        const result = log.setResults?.[setIndex] || { passed: null, outcome: '' };
+                        return (
+                          <div key={setIndex} style={styles.setResultItem}>
+                            <div style={styles.setResultHeader}>
+                              <span style={styles.setNumber}>Set {setIndex + 1}</span>
+                              <div style={styles.setResultBtns}>
+                                <button
+                                  style={{ ...styles.setResultBtn, ...(result.passed === true ? styles.setResultBtnPass : {}) }}
+                                  onClick={() => updateSetResult(logKey, setIndex, true, '')}
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  style={{ ...styles.setResultBtn, ...(result.passed === false ? styles.setResultBtnFail : {}) }}
+                                  onClick={() => updateSetResult(logKey, setIndex, false, result.outcome)}
+                                >
+                                  ✗
+                                </button>
+                              </div>
+                            </div>
+                            {result.passed === false && (
+                              <input
+                                type="text"
+                                style={styles.outcomeInput}
+                                placeholder="Outcome / notes..."
+                                value={result.outcome || ''}
+                                onChange={(e) => updateSetResult(logKey, setIndex, false, e.target.value)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Total Reps Counter - Simple and working */}
+                {sets > 0 && reps && !isNaN(parseInt(reps)) && (
+                  <div style={styles.totalRepsSection}>
+                    {/* Individual exercise total */}
+                    <div style={styles.totalRepsRow}>
+                      {log.locked?.totalReps ? (
+                        <span 
+                          style={styles.totalRepsLocked}
+                          onClick={() => toggleLock(logKey, 'totalReps')}
+                        >
+                          Total Reps = {log.actualReps || 0}/{log.maxReps || sets * parseInt(reps)}
+                        </span>
+                      ) : (
+                        <>
+                          <span style={styles.totalRepsLabel}>Total Reps =</span>
+                          <input
+                            type="number"
+                            style={styles.totalRepsInput}
+                            value={log.actualReps !== undefined ? log.actualReps : (log.setResults?.filter(r => r?.passed === true).length || 0) * parseInt(reps)}
+                            onChange={(e) => updateExerciseLog(logKey, 'actualReps', e.target.value)}
+                            onBlur={() => {
+                              if (log.actualReps !== undefined && log.actualReps !== '') {
+                                lockField(logKey, 'totalReps');
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                lockField(logKey, 'totalReps');
+                                e.target.blur();
+                              }
+                            }}
+                            placeholder="0"
+                          />
+                          <span style={styles.totalRepsSlash}>/</span>
+                          <input
+                            type="number"
+                            style={styles.totalRepsInputMax}
+                            value={log.maxReps !== undefined ? log.maxReps : sets * parseInt(reps)}
+                            onChange={(e) => updateExerciseLog(logKey, 'maxReps', e.target.value)}
+                            onBlur={() => {
+                              if (log.actualReps !== undefined && log.actualReps !== '') {
+                                lockField(logKey, 'totalReps');
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                lockField(logKey, 'totalReps');
+                                e.target.blur();
+                              }
+                            }}
+                          />
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Combined total for same exercise (if multiple instances) */}
+                    {(() => {
+                      const sameExerciseInstances = exerciseOrder.filter(ex => ex.id === exercise.id);
+                      if (sameExerciseInstances.length > 1 && sameExerciseInstances[0]?.instanceId === exercise.instanceId) {
+                        let combinedActual = 0;
+                        let combinedMax = 0;
+                        sameExerciseInstances.forEach(inst => {
+                          const instLog = workoutLog[inst.instanceId] || {};
+                          const instSets = parseInt(instLog.sets) || 0;
+                          const instReps = parseInt(instLog.reps) || 0;
+                          const instMax = instLog.maxReps !== undefined ? parseInt(instLog.maxReps) : (instSets * instReps);
+                          const instActual = instLog.actualReps !== undefined ? parseInt(instLog.actualReps) : (instLog.setResults?.filter(r => r?.passed === true).length || 0) * instReps;
+                          combinedActual += instActual || 0;
+                          combinedMax += instMax || 0;
+                        });
+                        
+                        return (
+                          <div style={styles.combinedTotalRow}>
+                            <span style={styles.combinedTotalLabel}>Combined {getExerciseName(exercise.id)}:</span>
+                            <span style={styles.combinedTotalValue}>{combinedActual}/{combinedMax}</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={styles.continueContainer}>
+          <button style={styles.saveBtn} onClick={saveWorkout}>Log Workout ✓</button>
+        </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ SAVE SUCCESS SCREEN ============
+  if (screen === 'save-success') {
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine1} />
+          <div style={styles.abstractLine3} />
+          <div style={styles.abstractDiamond} />
+          <div style={styles.abstractDiamond2} />
+          <div style={styles.abstractGradientOrb} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <div style={styles.successContainer}>
+            <div style={styles.successIcon}>✓</div>
+            <h1 style={styles.successTitle}>Workout Saved!</h1>
+            <p style={styles.successSubtitle}>{selectedTemplate?.name}</p>
+            <p style={styles.successDate}>{dayName}, {dateStr}</p>
+            
+            <div style={styles.successStats}>
+              <div style={styles.successStat}>
+                <span style={styles.successStatNum}>{selectedCompounds.length}</span>
+                <span style={styles.successStatLabel}>Compounds</span>
+              </div>
+              <div style={styles.successStat}>
+                <span style={styles.successStatNum}>{selectedIsolations.length}</span>
+                <span style={styles.successStatLabel}>Isolations</span>
+              </div>
+            </div>
+
+            <div style={styles.successButtons}>
+              <button style={styles.successBtnPrimary} onClick={() => {
+              setScreen('templates');
+              setSelectedTemplate(null);
+              setCompoundCount(null);
+              setSelectedCompounds([]);
+              setSelectedIsolations([]);
+              setWorkoutLog({});
+            }}>
+              Done
+            </button>
+            <button style={styles.successBtnSecondary} onClick={() => setScreen('calendar')}>
+              View Calendar
+            </button>
+          </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ CALENDAR SCREEN ============
+  if (screen === 'calendar') {
+    const { daysInMonth, startingDay, year, month } = getDaysInMonth(calendarMonth);
+    const monthName = calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const viewingWorkout = selectedWorkoutDate ? getWorkoutForDate(selectedWorkoutDate) : null;
+
+    return (
+      <div style={styles.container}>
+        {/* Abstract background */}
+        <div style={styles.abstractBg}>
+          <div style={styles.abstractLine2} />
+          <div style={styles.abstractLine4} />
+          <div style={styles.abstractGradientOrb2} />
+        </div>
+
+        <div style={styles.contentWrapper}>
+          <button style={styles.backButton} onClick={() => { setScreen('templates'); setSelectedWorkoutDate(null); }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+
+          <div style={styles.calendarHeader}>
+            <button style={styles.calendarNavBtn} onClick={() => setCalendarMonth(new Date(year, month - 1, 1))}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <h1 style={styles.calendarTitle}>{monthName}</h1>
+            <button style={styles.calendarNavBtn} onClick={() => setCalendarMonth(new Date(year, month + 1, 1))}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+
+          <div style={styles.calendarWeekDays}>
+            {weekDays.map(day => (
+              <span key={day} style={styles.calendarWeekDay}>{day}</span>
+            ))}
+          </div>
+
+          <div style={styles.calendarGrid}>
+            {Array(startingDay).fill(null).map((_, i) => (
+              <div key={`empty-${i}`} style={styles.calendarDayEmpty} />
+            ))}
+            {Array(daysInMonth).fill(null).map((_, i) => {
+              const day = i + 1;
+              const dateKey = formatDateKey(year, month, day);
+              const hasWorkout = !!savedWorkouts[dateKey];
+              const isToday = dateKey === todayKey;
+              const isSelected = dateKey === selectedWorkoutDate;
+              const isFuture = new Date(dateKey) > new Date(todayKey);
+
+              return (
+                <button
+                  key={day}
+                  style={{
+                    ...styles.calendarDay,
+                    ...(hasWorkout ? styles.calendarDayWorkout : {}),
+                    ...(isToday ? styles.calendarDayToday : {}),
+                    ...(isSelected ? styles.calendarDaySelected : {}),
+                    ...(isFuture ? styles.calendarDayFuture : {}),
+                  }}
+                  onClick={() => !isFuture && setSelectedWorkoutDate(dateKey)}
+                  disabled={isFuture}
+              >
+                <span style={styles.calendarDayNum}>{day}</span>
+                {hasWorkout && <span style={styles.calendarDayDot}>●</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Workout Detail or Add New */}
+        {selectedWorkoutDate && (
+          viewingWorkout ? (
+          <div style={styles.workoutDetail}>
+            <div style={styles.workoutDetailHeader}>
+              <span style={styles.workoutDetailDate}>
+                {new Date(selectedWorkoutDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              </span>
+              <div style={styles.workoutDetailActions}>
+                <button style={styles.editWorkoutBtn} onClick={() => handleEditWorkout(selectedWorkoutDate)}>
+                  ✎ Edit
+                </button>
+                <button style={styles.closeDetailBtn} onClick={() => setSelectedWorkoutDate(null)}>✕</button>
+              </div>
+            </div>
+            <h2 style={styles.workoutDetailTitle}>{viewingWorkout.template?.name}</h2>
+            <span style={{
+              ...styles.workoutDetailTag,
+              ...(viewingWorkout.template?.type === 'home' ? styles.tagHome : styles.tagGym)
+            }}>
+              {viewingWorkout.template?.location}
+            </span>
+
+            <div style={styles.workoutDetailSection}>
+              <span style={styles.workoutDetailLabel}>EXERCISES</span>
+              {viewingWorkout.exerciseOrder?.map((exercise, i) => {
+                const exerciseLog = viewingWorkout.log?.[exercise.instanceId];
+                const isCompound = exercise.type === 'compound';
+                const baseName = getExerciseName(exercise.id);
+                let displayName = baseName;
+                if (isCompound && exercise.weightType === 'KG' && exerciseLog?.kgAmount) {
+                  displayName = `${baseName} (${exerciseLog.kgAmount}kg)`;
+                } else if (!isCompound && exerciseLog?.kgAmount) {
+                  displayName = `${baseName} (${exerciseLog.kgAmount}kg)`;
+                }
+                if (isCompound && exercise.trainingStyle && exercise.trainingStyle !== 'STANDARD') {
+                  displayName = `${displayName} - ${exercise.trainingStyle}`;
+                }
+                
+                const sets = exerciseLog?.sets;
+                const reps = exerciseLog?.reps;
+                const actualReps = exerciseLog?.actualReps;
+                const maxReps = exerciseLog?.maxReps || (parseInt(sets) * parseInt(reps)) || 0;
+                
+                return (
+                  <div key={exercise.instanceId} style={styles.workoutDetailItem}>
+                    <div style={styles.workoutDetailItemLeft}>
+                      <span style={styles.workoutDetailItemTag}>
+                        {isCompound ? 'C' : 'I'}
+                      </span>
+                      <span style={styles.workoutDetailItemName}>
+                        {i === 0 && isCompound ? '★ ' : ''}{displayName}
+                      </span>
+                    </div>
+                    {sets && reps && (
+                      <div style={styles.workoutDetailItemRight}>
+                        <span style={styles.workoutDetailItemSets}>{sets}×{reps}</span>
+                        {actualReps !== undefined && (
+                          <span style={styles.workoutDetailItemCompleted}>
+                            → {actualReps} reps
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Total Compound Reps by Pull/Push */}
+            {(() => {
+              const compoundExercises = viewingWorkout.exerciseOrder?.filter(ex => ex.type === 'compound') || [];
+              
+              let pullTotal = 0;
+              let pullTarget = 0;
+              let pushTotal = 0;
+              let pushTarget = 0;
+              
+              compoundExercises.forEach(exercise => {
+                const exerciseLog = viewingWorkout.log?.[exercise.instanceId];
+                if (exerciseLog) {
+                  const sets = parseInt(exerciseLog.sets) || 0;
+                  const reps = parseInt(exerciseLog.reps) || 0;
+                  const actual = exerciseLog.actualReps !== undefined ? parseInt(exerciseLog.actualReps) : 0;
+                  const max = exerciseLog.maxReps !== undefined ? parseInt(exerciseLog.maxReps) : (sets * reps);
+                  
+                  if (PULL_EXERCISES.includes(exercise.id)) {
+                    pullTotal += actual;
+                    pullTarget += max;
+                  } else if (PUSH_EXERCISES.includes(exercise.id)) {
+                    pushTotal += actual;
+                    pushTarget += max;
+                  }
+                }
+              });
+              
+              const hasPull = pullTarget > 0;
+              const hasPush = pushTarget > 0;
+              
+              if (hasPull || hasPush) {
+                return (
+                  <div style={styles.compoundTotalSection}>
+                    {hasPull && (
+                      <div style={styles.compoundTotalGroup}>
+                        <span style={styles.compoundTotalLabel}>PULL-UPS</span>
+                        <span style={styles.compoundTotalValue}>{pullTotal}</span>
+                        <span style={styles.compoundTotalTarget}>/ {pullTarget} target</span>
+                      </div>
+                    )}
+                    {hasPush && (
+                      <div style={{ ...styles.compoundTotalGroup, ...(hasPull ? { marginTop: '16px' } : {}) }}>
+                        <span style={styles.compoundTotalLabel}>PUSH</span>
+                        <span style={styles.compoundTotalValue}>{pushTotal}</span>
+                        <span style={styles.compoundTotalTarget}>/ {pushTarget} target</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </div>
+          ) : (
+          <div style={styles.workoutDetail}>
+            <div style={styles.workoutDetailHeader}>
+              <span style={styles.workoutDetailDate}>
+                {new Date(selectedWorkoutDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              </span>
+              <button style={styles.closeDetailBtn} onClick={() => setSelectedWorkoutDate(null)}>✕</button>
+            </div>
+            <div style={styles.noWorkoutContent}>
+              <span style={styles.noWorkoutText}>No workout logged</span>
+              <button style={styles.addWorkoutBtn} onClick={() => handleAddWorkoutForDate(selectedWorkoutDate)}>
+                + Add Workout
+              </button>
+            </div>
+          </div>
+          )
+        )}
+
+        {!selectedWorkoutDate && (
+          <div style={styles.calendarHint}>
+            <span style={styles.calendarHintText}>Tap any day to view or add workout</span>
+          </div>
+        )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+const styles = {
+  container: { minHeight: '100vh', backgroundColor: '#F4F6F8', padding: '20px', fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' },
+  
+  // Abstract geometric background art
+  abstractBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' },
+  abstractLine1: { position: 'absolute', top: '-20%', left: '-10%', width: '60%', height: '200%', background: 'linear-gradient(135deg, transparent 48%, rgba(196, 167, 125, 0.06) 49%, rgba(196, 167, 125, 0.06) 51%, transparent 52%)', transform: 'rotate(-15deg)' },
+  abstractLine2: { position: 'absolute', top: '-30%', right: '-5%', width: '50%', height: '200%', background: 'linear-gradient(135deg, transparent 48%, rgba(139, 115, 85, 0.04) 49%, rgba(139, 115, 85, 0.04) 51%, transparent 52%)', transform: 'rotate(25deg)' },
+  abstractLine3: { position: 'absolute', bottom: '-10%', left: '20%', width: '80%', height: '150%', background: 'linear-gradient(-45deg, transparent 48%, rgba(13, 148, 136, 0.03) 49%, rgba(13, 148, 136, 0.03) 51%, transparent 52%)', transform: 'rotate(-30deg)' },
+  abstractLine4: { position: 'absolute', top: '10%', right: '10%', width: '40%', height: '120%', background: 'linear-gradient(60deg, transparent 48%, rgba(196, 167, 125, 0.04) 49%, rgba(196, 167, 125, 0.04) 51%, transparent 52%)', transform: 'rotate(45deg)' },
+  abstractDiamond: { position: 'absolute', top: '15%', right: '5%', width: '100px', height: '100px', border: '1px solid rgba(196, 167, 125, 0.1)', transform: 'rotate(45deg)' },
+  abstractDiamond2: { position: 'absolute', bottom: '20%', left: '8%', width: '60px', height: '60px', border: '1px solid rgba(13, 148, 136, 0.08)', transform: 'rotate(45deg)' },
+  abstractGradientOrb: { position: 'absolute', top: '30%', left: '-15%', width: '300px', height: '300px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(196, 167, 125, 0.08) 0%, transparent 70%)' },
+  abstractGradientOrb2: { position: 'absolute', bottom: '10%', right: '-10%', width: '250px', height: '250px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(13, 148, 136, 0.05) 0%, transparent 70%)' },
+  
+  contentWrapper: { position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 },
+  
+  hero: { background: 'linear-gradient(135deg, #1A1816 0%, #2D2926 100%)', borderRadius: '24px', padding: '24px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 8px 32px rgba(26, 24, 22, 0.2)', position: 'relative', overflow: 'hidden' },
+  heroAbstract: { position: 'absolute', top: 0, right: 0, width: '150px', height: '100%', background: 'linear-gradient(135deg, transparent 40%, rgba(196, 167, 125, 0.1) 100%)', pointerEvents: 'none' },
+  heroAbstractLine: { position: 'absolute', bottom: '-20px', right: '20%', width: '1px', height: '80px', backgroundColor: 'rgba(196, 167, 125, 0.2)', transform: 'rotate(-30deg)' },
+  heroContent: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  dateBadge: { display: 'flex', alignItems: 'center', gap: '8px' },
+  dateDay: { fontSize: '13px', fontWeight: '600', color: '#C4A77D', textTransform: 'uppercase', letterSpacing: '1px' },
+  dateNum: { fontSize: '13px', fontWeight: '500', color: 'rgba(255,255,255,0.5)' },
+  heroTitle: { fontSize: '26px', fontWeight: '700', color: '#FFFFFF', margin: 0, lineHeight: '1.2' },
+  heroAccent: { color: '#C4A77D' },
+  heroIcon: { fontSize: '48px' },
+  sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingLeft: '4px' },
+  sectionTitle: { fontSize: '12px', fontWeight: '700', color: '#8B7355', letterSpacing: '1.5px' },
+  sectionCount: { fontSize: '12px', fontWeight: '500', color: '#B8A990' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', flex: '0 0 auto' },
+  card: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '20px', border: '4px solid transparent', padding: '18px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', textAlign: 'left', transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease', animation: 'fadeIn 0.4s ease forwards', opacity: 0, minHeight: '110px', position: 'relative', boxShadow: '0 6px 20px rgba(26, 24, 22, 0.25)', overflow: 'hidden' },
+  cardAbstract: { position: 'absolute', top: 0, right: 0, width: '60%', height: '100%', background: 'linear-gradient(135deg, transparent 50%, rgba(196, 167, 125, 0.05) 100%)', pointerEvents: 'none' },
+  cardSelected: { transform: 'scale(1.04)', borderColor: '#C4A77D', boxShadow: '0 12px 32px rgba(26, 24, 22, 0.35), 0 0 24px rgba(196, 167, 125, 0.25)' },
+  locationTag: { fontSize: '11px', fontWeight: '700', letterSpacing: '1.5px', padding: '6px 12px', borderRadius: '8px' },
+  tagGym: { backgroundColor: '#C4A77D', color: '#1A1816' },
+  tagHome: { backgroundColor: '#C43C2D', color: '#FFFFFF' },
+  templateName: { fontSize: '17px', fontWeight: '700', color: '#FFFFFF', lineHeight: '1.3', marginTop: '8px' },
+  cardArrow: { position: 'absolute', bottom: '16px', right: '16px', color: 'rgba(196, 167, 125, 0.5)' },
+  selectedBanner: { marginTop: '20px', padding: '20px 24px', background: 'linear-gradient(135deg, #C4A77D 0%, #A8895D 100%)', borderRadius: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 6px 24px rgba(196, 167, 125, 0.3)', animation: 'slideUp 0.3s ease' },
+  selectedLeft: { flex: 1 },
+  selectedText: { color: '#1A1816', fontSize: '22px', fontWeight: '800', letterSpacing: '-0.3px' },
+  selectedRight: { display: 'flex', alignItems: 'center', gap: '12px' },
+  selectedTag: { fontSize: '12px', fontWeight: '700', letterSpacing: '1.5px', padding: '8px 14px', borderRadius: '8px' },
+  selectedTagGym: { backgroundColor: '#1A1816', color: '#FFFFFF' },
+  selectedTagHome: { backgroundColor: '#C43C2D', color: '#FFFFFF' },
+  selectedBtn: { backgroundColor: '#1A1816', color: '#FFFFFF', padding: '14px 24px', borderRadius: '12px', fontSize: '16px', fontWeight: '700', border: 'none', cursor: 'pointer', transition: 'transform 0.2s ease' },
+  bottomSection: { marginTop: 'auto', paddingTop: '24px' },
+  statsCard: { display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '20px 16px', background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '20px', boxShadow: '0 6px 20px rgba(26, 24, 22, 0.2)', position: 'relative', overflow: 'hidden' },
+  statsCardAbstract: { position: 'absolute', top: '-50%', right: '-20%', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(196, 167, 125, 0.08) 0%, transparent 70%)', pointerEvents: 'none' },
+  stat: { display: 'flex', alignItems: 'center', gap: '10px' },
+  statIcon: { fontSize: '24px' },
+  statInfo: { display: 'flex', flexDirection: 'column' },
+  statNumber: { fontSize: '20px', fontWeight: '700', color: '#FFFFFF' },
+  statLabel: { fontSize: '11px', fontWeight: '600', color: '#C4A77D', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  statDivider: { width: '1px', height: '40px', backgroundColor: 'rgba(196, 167, 125, 0.2)' },
+  dateOverrideBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0D9488', padding: '12px 16px', borderRadius: '12px', marginBottom: '16px' },
+  dateOverrideText: { fontSize: '14px', fontWeight: '700', color: '#FFFFFF' },
+  dateOverrideCancel: { background: 'none', border: 'none', color: '#FFFFFF', fontSize: '18px', cursor: 'pointer', padding: '4px' },
+  backButton: { background: 'none', border: 'none', color: '#8B7355', cursor: 'pointer', padding: '8px', marginLeft: '-8px', marginBottom: '16px', borderRadius: '12px', transition: 'background 0.2s ease', alignSelf: 'flex-start' },
+  questionHeader: { marginBottom: '20px' },
+  questionStep: { fontSize: '12px', fontWeight: '700', color: '#C4A77D', letterSpacing: '2px', marginBottom: '12px', display: 'block' },
+  questionTitle: { fontSize: '28px', fontWeight: '700', color: '#1A1816', margin: '0 0 8px 0', lineHeight: '1.2' },
+  questionSubtitle: { fontSize: '16px', fontWeight: '500', color: '#8B7355', margin: 0 },
+  countGrid: { display: 'flex', gap: '12px', justifyContent: 'center', flex: 1, alignItems: 'center', flexWrap: 'wrap' },
+  countCard: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '24px', border: '4px solid transparent', padding: '28px 20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease', animation: 'fadeIn 0.4s ease forwards', opacity: 0, width: '70px', height: '100px', boxShadow: '0 8px 24px rgba(26, 24, 22, 0.25)' },
+  countCardSelected: { transform: 'scale(1.08)', borderColor: '#C4A77D', boxShadow: '0 16px 40px rgba(26, 24, 22, 0.35), 0 0 28px rgba(196, 167, 125, 0.3)' },
+  countNumber: { fontSize: '40px', fontWeight: '800', color: '#FFFFFF', lineHeight: '1' },
+  countNumberSelected: { color: '#C4A77D' },
+  countLabel: { fontSize: '11px', fontWeight: '600', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  countLabelSelected: { color: '#C4A77D' },
+
+  // Decorative elements
+  decorCircle1: { position: 'absolute', top: '100px', right: '-50px', width: '150px', height: '150px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(196, 167, 125, 0.08) 0%, transparent 70%)', pointerEvents: 'none' },
+  decorCircle2: { position: 'absolute', bottom: '150px', left: '-30px', width: '100px', height: '100px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(13, 148, 136, 0.06) 0%, transparent 70%)', pointerEvents: 'none' },
+  decorLine: { width: '60px', height: '4px', background: 'linear-gradient(90deg, #C4A77D, transparent)', borderRadius: '2px', marginBottom: '24px' },
+  decorDots: { display: 'flex', gap: '6px', marginBottom: '16px' },
+  decorDot: { width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'rgba(196, 167, 125, 0.3)' },
+  decorSvg1: { position: 'absolute', bottom: '100px', right: '-20px', width: '200px', height: '200px', pointerEvents: 'none', zIndex: 0 },
+  decorSvgSmall: { position: 'absolute', bottom: '80px', right: '10px', width: '80px', height: '80px', pointerEvents: 'none', opacity: 0.5 },
+  decorAccentLine: { width: '40px', height: '3px', background: 'linear-gradient(90deg, #0D9488, transparent)', borderRadius: '2px', marginTop: '12px' },
+
+  // Template Slots Screen
+  slotHeader: { marginBottom: '24px' },
+  slotTag: { fontSize: '11px', fontWeight: '700', letterSpacing: '1.5px', padding: '6px 12px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' },
+  slotTitle: { fontSize: '28px', fontWeight: '700', color: '#1A1816', margin: '0 0 8px 0' },
+  slotSubtitle: { fontSize: '15px', color: '#8B7355', margin: 0 },
+  slotGrid: { display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 },
+  slotCardWrapper: { position: 'relative' },
+  slotCard: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '16px', padding: '20px', border: '2px solid transparent', cursor: 'pointer', transition: 'all 0.25s ease', position: 'relative', overflow: 'hidden', width: '100%', textAlign: 'left' },
+  slotCardFilled: { borderColor: 'rgba(196, 167, 125, 0.3)' },
+  slotCardInner: { position: 'relative', zIndex: 1 },
+  slotNumber: { fontSize: '16px', fontWeight: '700', color: '#C4A77D', display: 'block', marginBottom: '8px' },
+  slotInfo: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' },
+  slotCompounds: { fontSize: '14px', fontWeight: '600', color: '#FFFFFF' },
+  slotDot: { color: '#4A4540' },
+  slotIsolations: { fontSize: '14px', fontWeight: '600', color: '#FFFFFF' },
+  slotSaved: { fontSize: '13px', fontWeight: '600', color: '#0D9488' },
+  slotEmpty: { fontSize: '14px', color: '#4A4540' },
+  slotCorner: { position: 'absolute', top: 0, right: 0, width: '40px', height: '40px', background: 'linear-gradient(135deg, transparent 50%, rgba(196, 167, 125, 0.1) 50%)', pointerEvents: 'none' },
+  slotActions: { position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px', zIndex: 2 },
+  slotActionBtn: { width: '32px', height: '32px', borderRadius: '8px', border: 'none', backgroundColor: 'rgba(196, 167, 125, 0.2)', color: '#C4A77D', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  slotActionBtnDelete: { backgroundColor: 'rgba(196, 60, 45, 0.2)', color: '#C43C2D' },
+  newWorkoutCard: { background: 'transparent', borderRadius: '16px', padding: '24px', border: '2px dashed #C4A77D', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.25s ease' },
+  newWorkoutIcon: { width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(196, 167, 125, 0.15)', color: '#C4A77D', fontSize: '28px', fontWeight: '300', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  newWorkoutText: { fontSize: '16px', fontWeight: '700', color: '#C4A77D' },
+  newWorkoutSubtext: { fontSize: '13px', color: '#8B7355' },
+
+  // Save slot modal
+  saveSlotModal: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(26, 24, 22, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' },
+  saveSlotModalContent: { backgroundColor: '#FAF7F4', borderRadius: '24px', padding: '24px', width: '100%', maxWidth: '320px' },
+  saveSlotModalTitle: { fontSize: '22px', fontWeight: '700', color: '#1A1816', margin: '0 0 8px 0', textAlign: 'center' },
+  saveSlotModalSubtitle: { fontSize: '14px', color: '#8B7355', margin: '0 0 20px 0', textAlign: 'center' },
+  saveSlotOptions: { display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' },
+  saveSlotOption: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#2D2926', borderRadius: '12px', border: 'none', cursor: 'pointer' },
+  saveSlotOptionNum: { fontSize: '16px', fontWeight: '700', color: '#FFFFFF' },
+  saveSlotOptionStatus: { fontSize: '13px', color: '#C4A77D' },
+  saveSlotCancel: { flex: 1, padding: '14px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: '2px solid #8B7355', backgroundColor: 'transparent', color: '#8B7355', cursor: 'pointer' },
+  saveSlotConfirm: { flex: 1, padding: '14px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: 'none', backgroundColor: '#0D9488', color: '#FFFFFF', cursor: 'pointer' },
+  saveSlotBtnRow: { display: 'flex', gap: '10px', marginTop: '16px' },
+  slotNameInput: { width: '100%', padding: '14px 16px', fontSize: '16px', fontWeight: '600', borderRadius: '12px', border: '2px solid #C4A77D', backgroundColor: '#FFFFFF', color: '#1A1816', outline: 'none', boxSizing: 'border-box' },
+  permaSaveBtn: { width: '100%', padding: '14px 24px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: '2px solid #C4A77D', backgroundColor: 'transparent', color: '#C4A77D', cursor: 'pointer', marginBottom: '10px' },
+
+  // Training Style Selection Screen (Q2B)
+  trainingStyleList: { flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', paddingBottom: '20px' },
+  trainingStyleGroup: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(26, 24, 22, 0.25)' },
+  trainingStyleGroupHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)' },
+  trainingStyleGroupName: { fontSize: '18px', fontWeight: '700', color: '#FFFFFF' },
+  trainingStyleGroupWeight: { fontSize: '12px', fontWeight: '700', color: '#0D9488', backgroundColor: 'rgba(13, 148, 136, 0.2)', padding: '4px 10px', borderRadius: '6px' },
+  trainingStyleSetRow: { marginBottom: '12px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '12px' },
+  trainingStyleSetHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
+  trainingStyleSetLabel: { fontSize: '13px', fontWeight: '700', color: '#C4A77D' },
+  removeSetBtn: { width: '24px', height: '24px', borderRadius: '6px', border: 'none', backgroundColor: 'rgba(196, 60, 45, 0.2)', color: '#C43C2D', fontSize: '12px', fontWeight: '700', cursor: 'pointer' },
+  weightTypeRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' },
+  weightTypeLabel: { fontSize: '12px', fontWeight: '600', color: '#8B7355', minWidth: '50px' },
+  weightTypeBtns: { display: 'flex', gap: '8px' },
+  weightTypeBtn: { padding: '8px 16px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', border: '2px solid #4A4540', backgroundColor: 'transparent', color: '#8B7355', cursor: 'pointer', transition: 'all 0.2s ease' },
+  weightTypeBtnActive: { backgroundColor: '#0D9488', borderColor: '#0D9488', color: '#FFFFFF' },
+  trainingStyleOptionsRow: { display: 'flex', alignItems: 'flex-start', gap: '12px' },
+  trainingStyleOptionsLabel: { fontSize: '12px', fontWeight: '600', color: '#8B7355', minWidth: '50px', paddingTop: '10px' },
+  trainingStyleCard: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(26, 24, 22, 0.25)' },
+  trainingStyleCardHeader: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' },
+  trainingStyleCardNumber: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#C4A77D', color: '#1A1816', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  trainingStyleCardName: { flex: 1, fontSize: '18px', fontWeight: '700', color: '#FFFFFF' },
+  trainingStyleCardWeight: { fontSize: '12px', fontWeight: '700', color: '#0D9488', backgroundColor: 'rgba(13, 148, 136, 0.2)', padding: '4px 10px', borderRadius: '6px' },
+  trainingStyleOptions: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
+  trainingStyleOption: { flex: '1 1 calc(50% - 4px)', padding: '14px 12px', fontSize: '14px', fontWeight: '700', borderRadius: '10px', border: '2px solid #4A4540', backgroundColor: 'transparent', color: '#8B7355', cursor: 'pointer', transition: 'all 0.2s ease', textAlign: 'center' },
+  trainingStyleOptionActive: { backgroundColor: '#C4A77D', borderColor: '#C4A77D', color: '#1A1816' },
+  addAnotherSetBtn: { width: '100%', marginTop: '8px', padding: '12px', fontSize: '14px', fontWeight: '700', borderRadius: '10px', border: '2px dashed #4A4540', backgroundColor: 'transparent', color: '#8B7355', cursor: 'pointer', transition: 'all 0.2s ease' },
+
+  // Reorder Screen
+  reorderList: { flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', paddingBottom: '20px' },
+  reorderItem: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '12px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  reorderItemLeft: { display: 'flex', alignItems: 'center', gap: '12px', flex: 1 },
+  reorderNumber: { width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#C4A77D', color: '#1A1816', fontSize: '14px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  reorderInfo: { display: 'flex', flexDirection: 'column', gap: '2px' },
+  reorderBadge: { fontSize: '9px', fontWeight: '700', letterSpacing: '0.5px', padding: '2px 6px', borderRadius: '4px', alignSelf: 'flex-start' },
+  reorderBadgeCompound: { backgroundColor: 'rgba(196, 167, 125, 0.3)', color: '#C4A77D' },
+  reorderBadgeIsolation: { backgroundColor: 'rgba(13, 148, 136, 0.2)', color: '#0D9488' },
+  reorderName: { fontSize: '15px', fontWeight: '600', color: '#FFFFFF' },
+  reorderArrows: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  reorderArrowBtn: { width: '32px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#4A4540', color: '#FFFFFF', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s ease' },
+  reorderArrowDisabled: { opacity: 0.3, cursor: 'not-allowed' },
+
+  progressContainer: { marginTop: 'auto', paddingTop: '20px' },
+  progressTrack: { height: '6px', backgroundColor: 'rgba(26, 24, 22, 0.1)', borderRadius: '3px', overflow: 'hidden' },
+  progressFill: { height: '100%', background: 'linear-gradient(90deg, #C4A77D 0%, #A8895D 100%)', borderRadius: '3px', transition: 'width 0.4s ease' },
+  selectionCounter: { marginBottom: '20px', textAlign: 'center' },
+  counterText: { fontSize: '14px', fontWeight: '600', color: '#8B7355', backgroundColor: 'rgba(196, 167, 125, 0.15)', padding: '8px 16px', borderRadius: '20px' },
+  exerciseGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', flex: 1, overflowY: 'auto', paddingBottom: '20px' },
+  exerciseCardWrapper: { animation: 'fadeIn 0.4s ease forwards', opacity: 0 },
+  exerciseCard: { width: '100%', background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '20px', border: '4px solid transparent', padding: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: 'all 0.25s ease', boxShadow: '0 6px 20px rgba(26, 24, 22, 0.25)', position: 'relative', overflow: 'hidden', minHeight: '160px' },
+  exerciseCardMain: { borderColor: '#C4A77D', transform: 'scale(1.02)', boxShadow: '0 12px 32px rgba(26, 24, 22, 0.35), 0 0 32px rgba(196, 167, 125, 0.4)', background: 'linear-gradient(145deg, #3D3632 0%, #2A2420 100%)' },
+  exerciseCardSecondary: { borderColor: 'rgba(196, 167, 125, 0.4)', boxShadow: '0 8px 24px rgba(26, 24, 22, 0.3)' },
+  exerciseCardDisabled: { opacity: 0.4, cursor: 'not-allowed' },
+  exerciseCardSelected: { borderColor: '#0D9488', boxShadow: '0 8px 24px rgba(13, 148, 136, 0.3)' },
+  mainBadge: { position: 'absolute', top: '0', left: '0', right: '0', backgroundColor: '#C4A77D', color: '#1A1816', fontSize: '10px', fontWeight: '800', letterSpacing: '1.5px', padding: '6px', textAlign: 'center' },
+  secondaryBadge: { position: 'absolute', top: '0', left: '0', right: '0', backgroundColor: 'rgba(196, 167, 125, 0.3)', color: '#C4A77D', fontSize: '10px', fontWeight: '700', letterSpacing: '1px', padding: '5px', textAlign: 'center' },
+  illustrationContainer: { width: '100px', height: '100px', marginTop: '12px' },
+  illustrationMain: { width: '110px', height: '110px' },
+  illustrationSecondary: { opacity: 0.9 },
+  exerciseName: { fontSize: '14px', fontWeight: '700', color: '#FFFFFF', textAlign: 'center', lineHeight: '1.3' },
+  exerciseNameMain: { fontSize: '15px', color: '#C4A77D' },
+  exerciseNameSecondary: { color: 'rgba(255,255,255,0.85)' },
+  weightToggle: { display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'center' },
+  weightBtn: { padding: '10px 20px', fontSize: '14px', fontWeight: '700', borderRadius: '10px', border: '2px solid #3D3632', backgroundColor: '#2D2926', color: '#8B7355', cursor: 'pointer', transition: 'all 0.2s ease' },
+  weightBtnSelected: { backgroundColor: '#0D9488', borderColor: '#0D9488', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(13, 148, 136, 0.4)' },
+  continueContainer: { paddingTop: '16px', paddingBottom: '8px' },
+  continueBtn: { width: '100%', padding: '18px 24px', fontSize: '17px', fontWeight: '700', borderRadius: '16px', border: 'none', background: 'linear-gradient(135deg, #C4A77D 0%, #A8895D 100%)', color: '#1A1816', cursor: 'pointer', boxShadow: '0 6px 24px rgba(196, 167, 125, 0.3)', transition: 'transform 0.2s ease' },
+  
+  // Selected compounds in Q2
+  selectedCompoundsSection: { backgroundColor: 'rgba(196, 167, 125, 0.1)', borderRadius: '16px', padding: '12px 16px', marginBottom: '16px', border: '2px solid rgba(196, 167, 125, 0.3)' },
+  selectedCompoundsLabel: { fontSize: '11px', fontWeight: '700', color: '#C4A77D', letterSpacing: '1.5px', display: 'block', marginBottom: '10px' },
+  selectedCompoundsChips: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  selectedCompoundChipSimple: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '10px', backgroundColor: 'rgba(196, 167, 125, 0.2)' },
+  selectedCompoundChip: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '10px', backgroundColor: 'rgba(196, 167, 125, 0.2)' },
+  selectedCompoundChipMain: { backgroundColor: '#C4A77D' },
+  selectedCompoundInfo: { display: 'flex', alignItems: 'center', gap: '6px' },
+  chipStarSmall: { fontSize: '14px', color: '#1A1816' },
+  selectedCompoundName: { fontSize: '14px', fontWeight: '700', color: '#1A1816' },
+  selectedCompoundActions: { display: 'flex', alignItems: 'center', gap: '6px' },
+  weightBtnSmall: { padding: '6px 12px', fontSize: '12px', fontWeight: '700', borderRadius: '6px', border: '1.5px solid rgba(0,0,0,0.2)', backgroundColor: 'transparent', color: 'rgba(0,0,0,0.5)', cursor: 'pointer', transition: 'all 0.2s ease' },
+  weightBtnSmallActive: { backgroundColor: '#0D9488', borderColor: '#0D9488', color: '#FFFFFF' },
+  removeCompoundBtn: { width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: 'rgba(196, 60, 45, 0.2)', color: '#C43C2D', fontSize: '14px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '4px' },
+
+  compoundSummary: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '16px', padding: '16px', marginBottom: '16px' },
+  summaryLabel: { fontSize: '11px', fontWeight: '700', color: '#C4A77D', letterSpacing: '1.5px', display: 'block', marginBottom: '12px' },
+  compoundChips: { display: 'flex', flexWrap: 'wrap', gap: '8px' },
+  compoundChip: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: '600' },
+  compoundChipMain: { backgroundColor: '#C4A77D', color: '#1A1816' },
+  compoundChipSecondary: { backgroundColor: 'rgba(196, 167, 125, 0.2)', color: '#C4A77D' },
+  chipStar: { fontSize: '12px' },
+  chipName: { fontWeight: '700' },
+  chipWeight: { fontSize: '11px', opacity: 0.8, backgroundColor: 'rgba(0,0,0,0.15)', padding: '2px 6px', borderRadius: '4px' },
+  selectedIsolations: { backgroundColor: 'rgba(13, 148, 136, 0.1)', borderRadius: '16px', padding: '16px', marginBottom: '16px', border: '2px solid rgba(13, 148, 136, 0.3)' },
+  selectedIsoLabel: { fontSize: '11px', fontWeight: '700', color: '#0D9488', letterSpacing: '1.5px', display: 'block', marginBottom: '12px' },
+  selectedIsoChips: { display: 'flex', flexWrap: 'wrap', gap: '8px' },
+  selectedIsoChip: { display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', backgroundColor: '#0D9488', color: '#FFFFFF' },
+  checkmark: { fontSize: '12px', fontWeight: '700' },
+  isolationGroups: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '16px' },
+  isolationGroup: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '16px', overflow: 'hidden' },
+  groupHeader: { width: '100%', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease' },
+  groupHeaderActive: { backgroundColor: 'rgba(13, 148, 136, 0.1)' },
+  groupHeaderLeft: { display: 'flex', alignItems: 'center', gap: '10px' },
+  groupName: { fontSize: '17px', fontWeight: '700', color: '#FFFFFF' },
+  groupNameActive: { color: '#0D9488' },
+  groupSelectedBadge: { backgroundColor: '#0D9488', color: '#FFFFFF', fontSize: '12px', fontWeight: '700', padding: '4px 10px', borderRadius: '12px' },
+  groupHeaderRight: { display: 'flex', alignItems: 'center', gap: '12px', color: '#8B7355' },
+  groupCount: { fontSize: '13px', fontWeight: '600', color: '#C4A77D' },
+  groupCountActive: { color: '#0D9488' },
+  exerciseList: { padding: '0 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '6px' },
+  isolationItem: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '2px solid transparent', cursor: 'pointer', transition: 'all 0.2s ease', width: '100%', textAlign: 'left' },
+  isolationItemChecked: { backgroundColor: 'rgba(13, 148, 136, 0.15)', borderColor: '#0D9488' },
+  checkbox: { width: '24px', height: '24px', borderRadius: '6px', border: '2px solid #4A4540', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s ease' },
+  checkboxChecked: { backgroundColor: '#0D9488', borderColor: '#0D9488', color: '#FFFFFF' },
+  isolationInfo: { display: 'flex', flexDirection: 'column', gap: '2px' },
+  isolationName: { fontSize: '15px', fontWeight: '600', color: '#FFFFFF' },
+  isolationNameChecked: { color: '#0D9488' },
+  isolationTarget: { fontSize: '12px', color: '#8B7355' },
+
+  // Logging Screen
+  logHeader: { marginBottom: '24px' },
+  logTitle: { fontSize: '28px', fontWeight: '700', color: '#1A1816', margin: '0 0 8px 0', lineHeight: '1.2' },
+  logSubtitle: { fontSize: '16px', fontWeight: '500', color: '#8B7355', margin: 0 },
+
+  // Workout Reference Card (always visible at top)
+  workoutRefCard: { backgroundColor: '#2D2926', borderRadius: '16px', padding: '16px', marginBottom: '16px', position: 'sticky', top: '0', zIndex: 10 },
+  workoutRefHeader: { marginBottom: '4px' },
+  workoutRefDate: { fontSize: '12px', fontWeight: '600', color: '#C4A77D' },
+  workoutRefTitle: { fontSize: '20px', fontWeight: '700', color: '#FFFFFF', margin: '0 0 8px 0' },
+  workoutRefTag: { fontSize: '10px', fontWeight: '700', letterSpacing: '1px', padding: '4px 10px', borderRadius: '6px', display: 'inline-block', marginBottom: '12px' },
+  workoutRefSection: { marginBottom: '8px' },
+  workoutRefLabel: { fontSize: '10px', fontWeight: '700', color: '#C4A77D', letterSpacing: '1px', display: 'block', marginBottom: '6px' },
+  workoutRefItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' },
+  workoutRefItemLeft: { display: 'flex', alignItems: 'center', gap: '8px' },
+  workoutRefCheck: { color: '#0D9488', fontSize: '14px', fontWeight: '700' },
+  workoutRefCheckEmpty: { color: '#4A4540', fontSize: '14px' },
+  workoutRefItemName: { fontSize: '13px', fontWeight: '600', color: '#FFFFFF' },
+  workoutRefItemComplete: { color: '#0D9488' },
+  workoutRefItemSets: { fontSize: '13px', fontWeight: '700', color: '#C4A77D' },
+  workoutRefItemNum: { fontSize: '12px', fontWeight: '600', color: '#8B7355', minWidth: '20px' },
+  workoutRefItemTagCompound: { fontSize: '9px', fontWeight: '700', color: '#C4A77D', backgroundColor: 'rgba(196, 167, 125, 0.2)', padding: '2px 5px', borderRadius: '4px', marginLeft: '6px' },
+  workoutRefItemTagIso: { fontSize: '9px', fontWeight: '700', color: '#0D9488', backgroundColor: 'rgba(13, 148, 136, 0.2)', padding: '2px 5px', borderRadius: '4px', marginLeft: '6px' },
+
+  logList: { flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' },
+  logCard: { background: 'linear-gradient(145deg, #2D2926 0%, #1A1816 100%)', borderRadius: '16px', padding: '14px 16px', border: '2px solid transparent' },
+  logCardMain: { borderColor: '#C4A77D', boxShadow: '0 0 20px rgba(196, 167, 125, 0.15)' },
+  logCardComplete: { borderColor: '#0D9488', boxShadow: '0 0 20px rgba(13, 148, 136, 0.15)' },
+  logCardHeader: { marginBottom: '12px' },
+  logCardHeaderTop: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' },
+  logOrderNum: { width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#C4A77D', color: '#1A1816', fontSize: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  logCompoundBadge: { display: 'inline-block', backgroundColor: 'rgba(196, 167, 125, 0.3)', color: '#C4A77D', fontSize: '9px', fontWeight: '700', letterSpacing: '0.5px', padding: '3px 8px', borderRadius: '4px' },
+  logMainBadge: { display: 'inline-block', backgroundColor: '#C4A77D', color: '#1A1816', fontSize: '9px', fontWeight: '800', letterSpacing: '0.5px', padding: '3px 8px', borderRadius: '4px' },
+  logSecondaryBadge: { display: 'inline-block', backgroundColor: 'rgba(196, 167, 125, 0.3)', color: '#C4A77D', fontSize: '9px', fontWeight: '700', letterSpacing: '0.5px', padding: '3px 8px', borderRadius: '4px' },
+  logIsoBadge: { display: 'inline-block', backgroundColor: 'rgba(13, 148, 136, 0.2)', color: '#0D9488', fontSize: '9px', fontWeight: '700', letterSpacing: '0.5px', padding: '3px 8px', borderRadius: '4px' },
+  logCompleteBadge: { display: 'inline-block', backgroundColor: '#0D9488', color: '#FFFFFF', fontSize: '9px', fontWeight: '800', letterSpacing: '0.5px', padding: '3px 8px', borderRadius: '4px', marginLeft: 'auto' },
+  logExerciseName: { display: 'block', fontSize: '18px', fontWeight: '700', color: '#FFFFFF' },
+  kgInputRow: { marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' },
+  kgLabel: { fontSize: '12px', fontWeight: '600', color: '#8B7355', minWidth: '50px' },
+  kgInputWrapper: { display: 'flex', alignItems: 'center', gap: '4px' },
+  kgInput: { width: '60px', padding: '8px 10px', fontSize: '15px', fontWeight: '600', borderRadius: '8px', border: '1.5px solid #4A4540', backgroundColor: '#1A1816', color: '#FFFFFF', textAlign: 'center', outline: 'none' },
+  kgSuffix: { fontSize: '13px', fontWeight: '600', color: '#8B7355' },
+  lockedValue: { fontSize: '15px', fontWeight: '700', color: '#8B7355', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' },
+  lockedSetsReps: { display: 'none' },
+  setsRepsDisplayClickable: { backgroundColor: '#C4A77D', padding: '8px 14px', borderRadius: '8px', marginLeft: 'auto', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s ease' },
+  editIcon: { fontSize: '12px', color: '#1A1816', opacity: 0.6 },
+  trainingStyleRow: { marginBottom: '12px' },
+  trainingStyleLabel: { fontSize: '11px', fontWeight: '600', color: '#8B7355', display: 'block', marginBottom: '6px' },
+  trainingStyleBtns: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+  trainingStyleBtn: { padding: '6px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1.5px solid #4A4540', backgroundColor: 'transparent', color: '#8B7355', cursor: 'pointer', transition: 'all 0.2s ease' },
+  trainingStyleBtnActive: { backgroundColor: '#C4A77D', borderColor: '#C4A77D', color: '#1A1816' },
+  setsRepsRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' },
+  inputGroup: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  inputLabel: { fontSize: '11px', fontWeight: '600', color: '#8B7355', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  numberInput: { width: '55px', padding: '8px 10px', fontSize: '15px', fontWeight: '600', borderRadius: '8px', border: '1.5px solid #4A4540', backgroundColor: '#1A1816', color: '#FFFFFF', textAlign: 'center', outline: 'none' },
+  timesSymbol: { fontSize: '18px', fontWeight: '700', color: '#C4A77D', marginTop: '16px' },
+  setsRepsDisplay: { backgroundColor: '#C4A77D', padding: '8px 14px', borderRadius: '8px', marginLeft: 'auto', marginTop: '16px' },
+  setsRepsText: { fontSize: '15px', fontWeight: '700', color: '#1A1816' },
+  setResultsSection: { marginTop: '4px' },
+  setResultsLabel: { fontSize: '11px', fontWeight: '600', color: '#8B7355', display: 'block', marginBottom: '8px' },
+  setResultsGrid: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  setResultItem: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '8px 10px' },
+  setResultHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  setNumber: { fontSize: '13px', fontWeight: '600', color: '#FFFFFF' },
+  setResultBtns: { display: 'flex', gap: '6px' },
+  setResultBtn: { width: '32px', height: '32px', borderRadius: '8px', border: '1.5px solid #4A4540', backgroundColor: 'transparent', color: '#8B7355', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  setResultBtnPass: { backgroundColor: '#0D9488', borderColor: '#0D9488', color: '#FFFFFF' },
+  setResultBtnFail: { backgroundColor: '#C43C2D', borderColor: '#C43C2D', color: '#FFFFFF' },
+  outcomeInput: { width: '100%', marginTop: '8px', padding: '8px 10px', fontSize: '13px', borderRadius: '8px', border: '1.5px solid #C43C2D', backgroundColor: 'rgba(196, 60, 45, 0.1)', color: '#FFFFFF', outline: 'none', boxSizing: 'border-box' },
+  totalRepsRow: { marginTop: '12px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px' },
+  totalRepsSection: { marginTop: '8px' },
+  totalRepsRow: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+  totalRepsLabel: { fontSize: '13px', fontWeight: '700', color: '#FFFFFF' },
+  totalRepsInput: { width: '55px', padding: '8px 10px', fontSize: '15px', fontWeight: '700', borderRadius: '8px', border: '2px solid #C4A77D', backgroundColor: '#1A1816', color: '#C4A77D', textAlign: 'center', outline: 'none' },
+  totalRepsSlash: { fontSize: '16px', fontWeight: '700', color: '#8B7355' },
+  totalRepsInputMax: { width: '55px', padding: '8px 10px', fontSize: '15px', fontWeight: '700', borderRadius: '8px', border: '2px solid #4A4540', backgroundColor: '#1A1816', color: '#8B7355', textAlign: 'center', outline: 'none' },
+  totalRepsMax: { fontSize: '14px', fontWeight: '700', color: '#FFFFFF' },
+  totalRepsLocked: { fontSize: '15px', fontWeight: '700', color: '#FFFFFF', cursor: 'pointer', backgroundColor: '#0D9488', padding: '10px 16px', borderRadius: '8px', transition: 'opacity 0.2s ease' },
+  combinedTotalRow: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(13, 148, 136, 0.15)', padding: '10px 14px', borderRadius: '8px', marginTop: '10px' },
+  combinedTotalLabel: { fontSize: '13px', fontWeight: '700', color: '#0D9488' },
+  combinedTotalValue: { fontSize: '18px', fontWeight: '800', color: '#0D9488' },
+  saveBtn: { width: '100%', padding: '18px 24px', fontSize: '17px', fontWeight: '700', borderRadius: '16px', border: 'none', background: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)', color: '#FFFFFF', cursor: 'pointer', boxShadow: '0 6px 24px rgba(13, 148, 136, 0.3)', transition: 'transform 0.2s ease' },
+
+  // Loading
+  loadingContainer: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  loadingText: { fontSize: '16px', fontWeight: '600', color: '#8B7355' },
+
+  // Calendar button
+  calendarBtn: { background: 'none', border: 'none', color: '#C4A77D', cursor: 'pointer', padding: '8px' },
+
+  // Success screen
+  successContainer: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+  successIcon: { width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#0D9488', color: '#FFFFFF', fontSize: '40px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' },
+  successTitle: { fontSize: '28px', fontWeight: '700', color: '#1A1816', margin: '0 0 8px 0' },
+  successSubtitle: { fontSize: '18px', fontWeight: '600', color: '#C4A77D', margin: '0 0 4px 0' },
+  successDate: { fontSize: '14px', fontWeight: '500', color: '#8B7355', margin: '0 0 24px 0' },
+  successStats: { display: 'flex', gap: '32px', marginBottom: '32px' },
+  successStat: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  successStatNum: { fontSize: '32px', fontWeight: '800', color: '#1A1816' },
+  successStatLabel: { fontSize: '12px', fontWeight: '600', color: '#8B7355', textTransform: 'uppercase' },
+  successButtons: { display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px' },
+  successBtnPrimary: { padding: '16px 24px', fontSize: '16px', fontWeight: '700', borderRadius: '14px', border: 'none', backgroundColor: '#1A1816', color: '#FFFFFF', cursor: 'pointer' },
+  successBtnSecondary: { padding: '16px 24px', fontSize: '16px', fontWeight: '700', borderRadius: '14px', border: '2px solid #C4A77D', backgroundColor: 'transparent', color: '#C4A77D', cursor: 'pointer' },
+
+  // Calendar screen
+  calendarHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' },
+  calendarTitle: { fontSize: '22px', fontWeight: '700', color: '#1A1816', margin: 0 },
+  calendarNavBtn: { background: 'none', border: 'none', color: '#8B7355', cursor: 'pointer', padding: '8px' },
+  calendarWeekDays: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' },
+  calendarWeekDay: { fontSize: '11px', fontWeight: '600', color: '#8B7355', textAlign: 'center', padding: '8px 0' },
+  calendarGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' },
+  calendarDayEmpty: { aspectRatio: '1', padding: '8px' },
+  calendarDay: { aspectRatio: '1', padding: '4px', borderRadius: '10px', border: 'none', backgroundColor: 'rgba(26, 24, 22, 0.05)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', transition: 'all 0.2s ease' },
+  calendarDayWorkout: { backgroundColor: 'rgba(196, 167, 125, 0.2)', cursor: 'pointer' },
+  calendarDayToday: { border: '2px solid #C4A77D' },
+  calendarDaySelected: { backgroundColor: '#C4A77D' },
+  calendarDayFuture: { opacity: 0.3, cursor: 'not-allowed' },
+  calendarDayNum: { fontSize: '14px', fontWeight: '600', color: '#1A1816' },
+  calendarDayDot: { fontSize: '8px', color: '#0D9488' },
+  calendarHint: { marginTop: '24px', textAlign: 'center' },
+  calendarHintText: { fontSize: '13px', color: '#8B7355' },
+
+  // Workout detail
+  workoutDetail: { marginTop: '20px', backgroundColor: '#2D2926', borderRadius: '16px', padding: '16px' },
+  workoutDetailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' },
+  workoutDetailDate: { fontSize: '12px', fontWeight: '600', color: '#C4A77D' },
+  workoutDetailActions: { display: 'flex', alignItems: 'center', gap: '8px' },
+  editWorkoutBtn: { background: 'rgba(196, 167, 125, 0.2)', border: '1px solid #C4A77D', color: '#C4A77D', fontSize: '12px', fontWeight: '600', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' },
+  closeDetailBtn: { background: 'none', border: 'none', color: '#8B7355', fontSize: '18px', cursor: 'pointer', padding: '4px' },
+  workoutDetailTitle: { fontSize: '20px', fontWeight: '700', color: '#FFFFFF', margin: '0 0 8px 0' },
+  workoutDetailTag: { fontSize: '10px', fontWeight: '700', letterSpacing: '1px', padding: '4px 10px', borderRadius: '6px', display: 'inline-block', marginBottom: '16px' },
+  workoutDetailSection: { marginBottom: '12px' },
+  workoutDetailLabel: { fontSize: '10px', fontWeight: '700', color: '#C4A77D', letterSpacing: '1px', display: 'block', marginBottom: '8px' },
+  workoutDetailItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', gap: '12px' },
+  workoutDetailItemLeft: { display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 },
+  workoutDetailItemTag: { fontSize: '9px', fontWeight: '700', padding: '3px 6px', borderRadius: '4px', backgroundColor: 'rgba(196, 167, 125, 0.2)', color: '#C4A77D' },
+  workoutDetailItemName: { fontSize: '14px', fontWeight: '600', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  workoutDetailItemRight: { display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 },
+  workoutDetailItemSets: { fontSize: '14px', fontWeight: '700', color: '#8B7355' },
+  workoutDetailItemCompleted: { fontSize: '14px', fontWeight: '700', color: '#0D9488' },
+  noWorkoutContent: { textAlign: 'center', padding: '20px 0' },
+  noWorkoutText: { fontSize: '15px', color: '#8B7355', display: 'block', marginBottom: '16px' },
+  addWorkoutBtn: { padding: '14px 24px', fontSize: '15px', fontWeight: '700', borderRadius: '12px', border: 'none', backgroundColor: '#0D9488', color: '#FFFFFF', cursor: 'pointer' },
+  compoundTotalSection: { marginTop: '16px', paddingTop: '16px', borderTop: '2px solid rgba(196, 167, 125, 0.3)', textAlign: 'center' },
+  compoundTotalGroup: { textAlign: 'center' },
+  compoundTotalLabel: { fontSize: '11px', fontWeight: '700', color: '#C4A77D', letterSpacing: '1.5px', display: 'block', marginBottom: '6px' },
+  compoundTotalValue: { fontSize: '32px', fontWeight: '800', color: '#0D9488', display: 'block', lineHeight: '1' },
+  compoundTotalTarget: { fontSize: '13px', fontWeight: '600', color: '#8B7355', display: 'block', marginTop: '4px' },
+};
+
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  input:focus { border-color: #C4A77D !important; }
+  input::placeholder { color: #4A4540; }
+`;
+document.head.appendChild(styleSheet);
+
+ReactDOM.createRoot(document.getElementById('root')).render(<WorkoutApp />);
+  </script>
+</body>
+</html>
